@@ -2,6 +2,7 @@
 // Quote state lives here (module-level store) so components can subscribe
 // via useSyncExternalStore without prop drilling.
 
+import { getApiBase } from './runtime';
 import type { SseBidAsk, SseTick } from './types/market';
 import type { OrderEventData } from './types/order';
 
@@ -15,7 +16,7 @@ export interface QuoteState {
     flashSeq: number; // bumps only on real trades (not simtrade/bidask)
 }
 
-const base = import.meta.env.VITE_API_BASE ?? '';
+const base = getApiBase();
 
 type Listener = () => void;
 

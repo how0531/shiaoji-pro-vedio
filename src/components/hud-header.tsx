@@ -15,9 +15,11 @@ import {
     type Convention,
     type ThemeMode,
 } from '../lib/theme-store';
+import { checkForUpdates, listenTrayEvents } from '../lib/tauri';
 import { fmtMoney } from '../lib/utils/format';
 import type { BlockType } from '../lib/workspace';
 import { MarketBar } from './market-bar';
+import { ServerManager } from './server-manager';
 import * as panel from './panel.css';
 import * as styles from './hud-header.css';
 
@@ -363,6 +365,19 @@ export function HudHeader({
     const [version, setVersion] = useState('');
     const [contractCount, setContractCount] = useState<number | null>(null);
     const [now, setNow] = useState(() => new Date());
+    const [serverMgrOpen, setServerMgrOpen] = useState(false);
+
+    useEffect(() => {
+        let cleanup: (() => void) | undefined;
+        listenTrayEvents(() => setServerMgrOpen(true)).then((un) => {
+            cleanup = un;
+        });
+        const t = setTimeout(() => checkForUpdates(true), 8000);
+        return () => {
+            cleanup?.();
+            clearTimeout(t);
+        };
+    }, []);
 
     useEffect(() => {
         fetchInfo()
@@ -417,6 +432,10 @@ export function HudHeader({
                 <span>{STATUS_LABEL[streamStatus]}</span>
             </div>
 
+            <ServerManager
+                open={serverMgrOpen}
+                onToggle={setServerMgrOpen}
+            />
             <RiskMenu />
             <AddBlockMenu
                 addableTypes={addableTypes}

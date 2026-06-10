@@ -9,6 +9,12 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@tauri-apps/api": "^2.11.0",
+        "@tauri-apps/plugin-notification": "^2.3.3",
+        "@tauri-apps/plugin-process": "^2.3.1",
+        "@tauri-apps/plugin-shell": "^2.3.5",
+        "@tauri-apps/plugin-store": "^2.4.3",
+        "@tauri-apps/plugin-updater": "^2.10.1",
         "@vanilla-extract/css": "^1.20.1",
         "lightweight-charts": "^5.2.0",
         "react": "^19.2.4",
@@ -16,6 +22,7 @@
         "react-grid-layout": "^2.2.3"
     },
     "devDependencies": {
+        "@tauri-apps/cli": "^2.11.2",
         "@types/node": "^25.9.2",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",

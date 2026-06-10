@@ -46,7 +46,32 @@ it talks directly to your local `shioaji server`.
 |------|-------|
 | ![dark](docs/screenshot-dark.png) | ![light](docs/screenshot-light.png) |
 
-## Getting Started 開始使用
+## Desktop App 桌面版（推薦）
+
+到 [Releases](https://github.com/Sinotrade/shioaji-pro-app/releases) 下載對應平台安裝檔
+（macOS `.dmg`、Windows `.msi`、Linux `.AppImage`/`.deb`/`.rpm`）。桌面版特色：
+
+- **內建 shioaji server**（sidecar）— 不需另外安裝 CLI
+- **伺服器管理介面** — header「伺服器」選單：啟動/停止/重啟、健康狀態、
+  PID/port、token 效期；API 金鑰在介面填寫（存於本機 App 資料夾）
+- **模擬/正式環境切換** — 介面上切換，重啟伺服器生效
+- **系統匣（Menu Bar）** — 關閉視窗縮到系統匣常駐；匣選單可叫回視窗、
+  開伺服器管理、檢查更新
+- **自動更新** — 啟動時靜默檢查，GitHub Releases 簽章驗證後自動更新重啟
+- **多視窗 Popout** — 面板 ⧉ 彈出為原生視窗，多螢幕交易
+- **單一實例** — 重複開啟自動聚焦既有視窗
+
+桌面版開發：
+
+```sh
+pnpm tauri dev    # 需先放置 sidecar：src-tauri/binaries/shioaji-<target-triple>
+pnpm tauri build
+```
+
+發佈：推 `v*` tag 觸發 GitHub Actions，自動建置 macOS（Intel/Apple Silicon）、
+Windows、Linux 並上傳 Release 與 updater manifest。
+
+## Getting Started 開始使用（Web 版）
 
 ### 1. Prerequisites 前置需求
 

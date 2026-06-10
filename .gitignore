@@ -16,3 +16,8 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+
+# Tauri
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/schemas/

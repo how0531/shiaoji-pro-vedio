@@ -1,6 +1,8 @@
 // src/lib/api.ts
 
-const base = import.meta.env.VITE_API_BASE ?? '';
+import { getApiBase } from './runtime';
+
+const base = getApiBase();
 
 export async function apiGet<T>(path: string): Promise<T> {
     const res = await fetch(base + path);

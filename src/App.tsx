@@ -35,6 +35,7 @@ import { usePoll } from './hooks/use-poll';
 import { useWatchlist } from './hooks/use-watchlist';
 import { ensureContract, useContract } from './lib/contracts-cache';
 import { reportDailyPnl } from './lib/risk';
+import { openPopout } from './lib/tauri';
 import {
     fetchAccountBalance,
     fetchMargin,
@@ -225,17 +226,11 @@ function BlockView(props: BlockViewProps) {
                 onRemove={() => onRemove(block.id)}
                 onPopout={
                     POPOUT_TYPES.has(block.type)
-                        ? () => {
-                              const qs = new URLSearchParams({
-                                  popout: block.type,
-                                  code: contract?.code ?? '',
-                              });
-                              window.open(
-                                  `${window.location.pathname}?${qs}`,
-                                  `sj-popout-${block.id}`,
-                                  'width=900,height=620,menubar=no,toolbar=no',
-                              );
-                          }
+                        ? () =>
+                              void openPopout(
+                                  block.type,
+                                  contract?.code ?? null,
+                              )
                         : undefined
                 }
             />
