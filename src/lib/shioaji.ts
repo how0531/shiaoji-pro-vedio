@@ -7,11 +7,61 @@ import type {
     SecurityType,
 } from './types/contract';
 import type { Health } from './types/health';
+import type {
+    KBars,
+    QuoteTypeName,
+    ScannerItem,
+    ScannerType,
+    Snapshot,
+    SubscriptionResponse,
+} from './types/market';
+import type {
+    FuturesOrderReq,
+    StockOrderReq,
+    Trade,
+} from './types/order';
+import type {
+    Account,
+    AccountBalance,
+    AccountTypeName,
+    FuturePosition,
+    Margin,
+    StockPosition,
+} from './types/portfolio';
 import type { HistoryTicks } from './types/tick';
+import { todayStr } from './utils/date';
+
+export interface ServerInfo {
+    name: string;
+    version: string;
+    description: string;
+    protocols: string[];
+    simulation: boolean;
+}
+
+function contractKey(c: ContractBase) {
+    return {
+        security_type: c.security_type,
+        exchange: c.exchange,
+        code: c.code,
+    };
+}
+
+// ---- health / info / auth ----
 
 export function fetchHealth() {
     return apiGet<Health>('/api/v1/health');
 }
+
+export function fetchInfo() {
+    return apiGet<ServerInfo>('/api/v1/info');
+}
+
+export function fetchAccounts() {
+    return apiGet<Account[]>('/api/v1/auth/accounts');
+}
+
+// ---- contracts ----
 
 export function fetchContract(
     code: string,
@@ -23,13 +73,134 @@ export function fetchContract(
     );
 }
 
+// ---- market data ----
+
+export function fetchSnapshots(contracts: ContractBase[]) {
+    return apiPost<Snapshot[]>('/api/v1/data/snapshots', {
+        contracts: contracts.map(contractKey),
+    });
+}
+
+export function fetchKbars(contract: ContractBase, start: string, end: string) {
+    return apiPost<KBars>('/api/v1/data/kbars', {
+        contract: contractKey(contract),
+        start,
+        end,
+    });
+}
+
 export function fetchHistoryTicks(contract: ContractBase, date: string) {
     return apiPost<HistoryTicks>('/api/v1/data/ticks', {
-        contract: {
-            security_type: contract.security_type,
-            exchange: contract.exchange,
-            code: contract.code,
-        },
+        contract: contractKey(contract),
         date,
+    });
+}
+
+export function fetchLastTicks(
+    contract: ContractBase,
+    count: number,
+    date = todayStr(),
+) {
+    return apiPost<HistoryTicks>('/api/v1/data/ticks', {
+        contract: contractKey(contract),
+        date,
+        query_type: 'LastCount',
+        last_cnt: count,
+    });
+}
+
+export function fetchScanner(
+    scannerType: ScannerType,
+    count = 30,
+    ascending = false,
+) {
+    return apiPost<ScannerItem[]>('/api/v1/data/scanner', {
+        scanner_type: scannerType,
+        date: todayStr(),
+        ascending,
+        count,
+    });
+}
+
+// ---- streaming subscriptions ----
+
+export function subscribeQuote(
+    contract: ContractBase,
+    quoteType: QuoteTypeName,
+) {
+    return apiPost<SubscriptionResponse>('/api/v1/stream/subscribe', {
+        ...contractKey(contract),
+        target_code: contract.target_code ?? null,
+        quote_type: quoteType,
+        intraday_odd: false,
+    });
+}
+
+export function unsubscribeQuote(
+    contract: ContractBase,
+    quoteType: QuoteTypeName,
+) {
+    return apiPost<SubscriptionResponse>('/api/v1/stream/unsubscribe', {
+        ...contractKey(contract),
+        target_code: contract.target_code ?? null,
+        quote_type: quoteType,
+        intraday_odd: false,
+    });
+}
+
+// ---- orders ----
+
+export function placeStockOrder(contract: ContractBase, order: StockOrderReq) {
+    return apiPost<Trade>('/api/v1/order/place_order', {
+        contract: contractKey(contract),
+        stock_order: order,
+    });
+}
+
+export function placeFuturesOrder(
+    contract: ContractBase,
+    order: FuturesOrderReq,
+) {
+    return apiPost<Trade>('/api/v1/order/place_order', {
+        contract: contractKey(contract),
+        futures_order: order,
+    });
+}
+
+export function cancelOrder(tradeId: string) {
+    return apiPost<Trade>('/api/v1/order/cancel_order', { trade_id: tradeId });
+}
+
+export function updateOrderPrice(tradeId: string, price: number) {
+    return apiPost<Trade>('/api/v1/order/update_price', {
+        trade_id: tradeId,
+        price,
+    });
+}
+
+export function fetchTrades(accountType: AccountTypeName) {
+    return apiPost<Trade[]>('/api/v1/order/trades', {
+        account_type: accountType,
+    });
+}
+
+// ---- portfolio ----
+
+export function fetchPositions(accountType: AccountTypeName) {
+    return apiPost<(StockPosition | FuturePosition)[]>(
+        '/api/v1/portfolio/position_unit',
+        { account_type: accountType, unit: 'Common' },
+    );
+}
+
+export function fetchAccountBalance() {
+    return apiPost<AccountBalance>('/api/v1/portfolio/account_balance', {
+        account_type: 'S',
+    });
+}
+
+export function fetchMargin() {
+    return apiPost<Margin>('/api/v1/portfolio/margin', {
+        account_type: 'F',
     });
 }

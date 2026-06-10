@@ -9,6 +9,10 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
     return {
         base: env.VITE_BASE ?? '/',
+        // shioaji app upload flattens nested paths — emit a flat bundle
+        build: { assetsDir: '' },
+        // react-draggable (react-grid-layout dep) reads process.env at runtime
+        define: { 'process.env': {} },
         plugins: [vanillaExtractPlugin(), react()],
         resolve: {
             alias: {

@@ -4,9 +4,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
-import { lightThemeClass } from './theme.css';
+import { initTheme } from './lib/theme-store';
+import { startTriggerEngine } from './lib/trigger-engine';
 
-document.documentElement.classList.add(lightThemeClass);
+initTheme();
+startTriggerEngine();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

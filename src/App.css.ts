@@ -1,52 +1,33 @@
-// src/App.css.ts
+// src/App.css.ts — app shell
 
 import { style } from '@vanilla-extract/css';
 import { vars } from './theme.css';
 
-export const header = style({
+export const shell = style({
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    background: vars.color.background,
+});
+
+export const blockPlaceholder = style({
+    flex: 1,
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: `${vars.space.md} ${vars.space.lg}`,
-    borderBottom: `1px solid ${vars.color.border}`,
+    justifyContent: 'center',
+    color: vars.color.mutedForeground,
+    fontSize: '0.72rem',
 });
 
-export const headerStatus = style({
-    fontSize: '0.875rem',
-});
-
-export const main = style({
-    maxWidth: '36rem',
-    margin: '0 auto',
+export const loading = style({
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: vars.space.lg,
-    padding: `${vars.space.xl} ${vars.space.lg}`,
-    textAlign: 'center',
-});
-
-export const logo = style({
-    width: '240px',
-    height: 'auto',
-    marginBottom: vars.space.sm,
-});
-
-export const title = style({
-    margin: 0,
-    fontSize: '1.5rem',
+    justifyContent: 'center',
+    gap: vars.space.md,
+    fontFamily: vars.font.display,
     fontWeight: 600,
-});
-
-export const hint = style({
-    margin: 0,
+    letterSpacing: '0.04em',
     color: vars.color.mutedForeground,
-});
-
-export const code = style({
-    padding: `${vars.space.xs} ${vars.space.sm}`,
-    fontFamily: vars.font.mono,
-    fontSize: '0.875rem',
-    background: vars.color.muted,
-    borderRadius: vars.radius.sm,
 });
