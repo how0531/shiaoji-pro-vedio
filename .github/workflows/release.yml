@@ -129,8 +129,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - name: Publish release (all platforms assembled)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # per-release feature notes live in RELEASE_NOTES.md
+          if [ -f RELEASE_NOTES.md ]; then
+            gh release edit '${{ github.ref_name }}'               --repo '${{ github.repository }}' --notes-file RELEASE_NOTES.md
+          fi
           gh release edit '${{ github.ref_name }}'             --repo '${{ github.repository }}' --draft=false
