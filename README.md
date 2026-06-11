@@ -1,5 +1,8 @@
 # Shioaji Pro — 專業交易終端 Trading Terminal
 
+**[官方網站 / Landing Page](https://sinotrade.github.io/shioaji-pro-app/)** ・
+**[下載 Download](https://github.com/Sinotrade/shioaji-pro-app/releases/latest)**
+
 A professional, fully-customizable trading terminal for Taiwan markets
 (TWSE / TPEX / TAIFEX), built on the [Shioaji](https://sinotrade.github.io/)
 HTTP API + SSE streaming. React 19 + TypeScript + Vite, zero backend code —
