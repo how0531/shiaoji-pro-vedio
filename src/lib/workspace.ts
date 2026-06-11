@@ -159,7 +159,7 @@ export const LAYOUT_PRESETS: { name: string; desc: string; workspace: Workspace 
         workspace: DEFAULT_WORKSPACE,
     },
     {
-        name: '當沖戰士',
+        name: '當沖交易',
         desc: '大圖+閃電下單+五檔明細，執行優先',
         workspace: {
             blocks: [
@@ -205,7 +205,7 @@ export const LAYOUT_PRESETS: { name: string; desc: string; workspace: Workspace 
         },
     },
     {
-        name: '選擇權工作站',
+        name: '選擇權',
         desc: 'T字報價+台指期圖+下單',
         workspace: {
             blocks: [

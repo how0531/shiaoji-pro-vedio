@@ -334,6 +334,7 @@ export default function App() {
     const {
         items,
         loading,
+        initialLoading,
         addSymbol,
         removeSymbol,
         serverLists,
@@ -589,7 +590,7 @@ export default function App() {
         [workspace.blocks],
     );
 
-    const booting = loading && items.length === 0;
+    const booting = initialLoading;
 
     if (POPOUT_TYPE && POPOUT_TYPES.has(POPOUT_TYPE)) {
         return <PopoutView type={POPOUT_TYPE} code={POPOUT_CODE} />;

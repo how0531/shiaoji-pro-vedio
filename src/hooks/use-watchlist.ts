@@ -48,6 +48,7 @@ async function resolveContract(
 export function useWatchlist() {
     const [items, setItems] = useState<WatchItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [serverLists, setServerLists] = useState<ServerWatchlist[]>([]);
     const [activeListId, setActiveListId] = useState<string>('');
     const subscribed = useRef(new Set<string>());
@@ -273,6 +274,8 @@ export function useWatchlist() {
                 }
             } catch {
                 setLoading(false);
+            } finally {
+                setInitialLoading(false);
             }
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,6 +284,7 @@ export function useWatchlist() {
     return {
         items,
         loading,
+        initialLoading,
         addSymbol,
         removeSymbol,
         serverLists,
