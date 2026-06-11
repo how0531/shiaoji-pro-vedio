@@ -76,3 +76,19 @@ export const statLabel = style({
 export const statValue = style({
     textAlign: 'right',
 });
+
+const limitBadgeBase = style({
+    fontFamily: vars.font.display,
+    fontSize: '0.66rem',
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    color: '#fff',
+    borderRadius: vars.radius.sm,
+    padding: '3px 8px',
+    alignSelf: 'center',
+});
+
+export const limitBadge = styleVariants({
+    up: [limitBadgeBase, { background: vars.color.up }],
+    down: [limitBadgeBase, { background: vars.color.down }],
+});

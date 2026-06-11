@@ -12,6 +12,7 @@ import { maskAccountId, usePrivacyMode } from '../lib/privacy';
 import {
     cancelOrder,
     fetchSettlements,
+    updateOrderPrice,
     updateOrderQty,
     type Settlement,
 } from '../lib/shioaji';
@@ -177,11 +178,14 @@ function PositionsTable({
     );
 }
 
-function QtyEditor({
+// inline editor for a working order's qty (減量) or price (改價)
+function OrderEditor({
     trade,
+    field,
     onChanged,
 }: {
     trade: Trade;
+    field: 'qty' | 'price';
     onChanged: () => void;
 }) {
     const [editing, setEditing] = useState(false);
@@ -190,59 +194,88 @@ function QtyEditor({
         return (
             <button
                 className={styles.cancelBtn}
-                title='減量（輸入新數量）'
+                title={field === 'qty' ? '減量（輸入新數量）' : '改價（輸入新價格）'}
                 onClick={() => {
                     setVal(
-                        String(
-                            trade.order.quantity -
-                                trade.status.deal_quantity,
-                        ),
+                        field === 'qty'
+                            ? String(
+                                  trade.order.quantity -
+                                      trade.status.deal_quantity,
+                              )
+                            : String(
+                                  trade.status.modified_price ||
+                                      trade.order.price,
+                              ),
                     );
                     setEditing(true);
                 }}
             >
-                改量
+                {field === 'qty' ? '改量' : '改價'}
             </button>
         );
     }
+    const submit = () => {
+        const n = Number(val);
+        const valid =
+            field === 'qty' ? Number.isInteger(n) && n >= 1 : n > 0;
+        if (valid) {
+            const req =
+                field === 'qty'
+                    ? updateOrderQty(trade.order.id, n)
+                    : updateOrderPrice(trade.order.id, n);
+            req.then(() => {
+                notify({
+                    kind: 'ok',
+                    title: field === 'qty' ? '✏️ 改量已送出' : '✏️ 改價已送出',
+                    body: `${trade.contract.code} → ${n}${field === 'qty' ? '（僅能減量）' : ''}`,
+                });
+                onChanged();
+            }).catch((err) =>
+                notify({
+                    kind: 'err',
+                    title: field === 'qty' ? '改量失敗' : '改價失敗',
+                    body: err instanceof Error ? err.message : String(err),
+                }),
+            );
+        }
+        setEditing(false);
+    };
     return (
         <input
             autoFocus
             className={styles.qtyInline}
             value={val}
-            inputMode='numeric'
+            inputMode={field === 'qty' ? 'numeric' : 'decimal'}
             onChange={(e) => setVal(e.target.value)}
             onBlur={() => setEditing(false)}
             onKeyDown={(e) => {
                 if (e.key === 'Escape') setEditing(false);
-                if (e.key === 'Enter') {
-                    const q = Number(val);
-                    if (Number.isInteger(q) && q >= 1) {
-                        updateOrderQty(trade.order.id, q)
-                            .then(() => {
-                                notify({
-                                    kind: 'ok',
-                                    title: '✏️ 改量已送出',
-                                    body: `${trade.contract.code} → ${q}（僅能減量）`,
-                                });
-                                onChanged();
-                            })
-                            .catch((err) =>
-                                notify({
-                                    kind: 'err',
-                                    title: '改量失敗',
-                                    body:
-                                        err instanceof Error
-                                            ? err.message
-                                            : String(err),
-                                }),
-                            );
-                    }
-                    setEditing(false);
-                }
+                if (e.key === 'Enter') submit();
             }}
         />
     );
+}
+
+// compact order-detail chip: 價別/效期 + 倉別(futures) / 單位(stocks)
+function orderDetail(t: Trade): string {
+    const parts: string[] = [];
+    if (t.order.price_type) parts.push(t.order.price_type);
+    if (t.order.order_type) parts.push(t.order.order_type);
+    if (t.order.octype && t.order.octype !== 'Auto') {
+        parts.push(
+            { New: '新倉', Cover: '平倉', DayTrade: '當沖' }[
+                t.order.octype
+            ] ?? t.order.octype,
+        );
+    }
+    if (t.order.order_lot && t.order.order_lot !== 'Common') {
+        parts.push(
+            { IntradayOdd: '零股', Odd: '零股', Fixing: '定盤', BlockTrade: '鉅額' }[
+                t.order.order_lot
+            ] ?? t.order.order_lot,
+        );
+    }
+    return parts.join(' ');
 }
 
 function OrdersTable({
@@ -275,9 +308,10 @@ function OrdersTable({
                 <tr>
                     <th className={styles.th}>代碼</th>
                     <th className={styles.th}>買賣</th>
+                    <th className={styles.th}>類別</th>
                     <th className={styles.th}>價格</th>
                     <th className={styles.th}>委託量</th>
-                    <th className={styles.th}>成交量</th>
+                    <th className={styles.th}>成交</th>
                     <th className={styles.th}>狀態</th>
                     <th className={styles.th}>訊息</th>
                     <th className={styles.th} />
@@ -286,6 +320,10 @@ function OrdersTable({
             <tbody>
                 {[...trades].reverse().map((t) => {
                     const st = t.status.status;
+                    const fillPct =
+                        t.order.quantity > 0
+                            ? (t.status.deal_quantity / t.order.quantity) * 100
+                            : 0;
                     return (
                         <tr
                             key={t.order.id}
@@ -299,6 +337,9 @@ function OrdersTable({
                             >
                                 {t.order.action === 'Buy' ? '買' : '賣'}
                             </td>
+                            <td className={`${styles.td} ${styles.detailCell}`}>
+                                {orderDetail(t) || '—'}
+                            </td>
                             <td className={styles.td}>
                                 {fmtPrice(
                                     t.status.modified_price || t.order.price,
@@ -308,7 +349,19 @@ function OrdersTable({
                                 {fmtInt(t.order.quantity)}
                             </td>
                             <td className={styles.td}>
-                                {fmtInt(t.status.deal_quantity)}
+                                <span className={styles.fillCell}>
+                                    {fmtInt(t.status.deal_quantity)}
+                                    {st === 'PartFilled' && (
+                                        <span className={styles.fillTrack}>
+                                            <span
+                                                className={styles.fillBar}
+                                                style={{
+                                                    width: `${fillPct}%`,
+                                                }}
+                                            />
+                                        </span>
+                                    )}
+                                </span>
                             </td>
                             <td className={styles.td}>
                                 <span
@@ -338,8 +391,19 @@ function OrdersTable({
                                                 e.stopPropagation()
                                             }
                                         >
-                                            <QtyEditor
+                                            {(t.order.price_type ?? 'LMT') ===
+                                                'LMT' && (
+                                                <>
+                                                    <OrderEditor
+                                                        trade={t}
+                                                        field='price'
+                                                        onChanged={onChanged}
+                                                    />{' '}
+                                                </>
+                                            )}
+                                            <OrderEditor
                                                 trade={t}
+                                                field='qty'
                                                 onChanged={onChanged}
                                             />
                                         </span>{' '}
@@ -379,8 +443,12 @@ function AccountView({
         useCallback(() => fetchSettlements().catch(() => []), []),
         60000,
     );
-    const items: { label: string; value: string; dir?: 'up' | 'down' | 'flat' }[] =
-        [];
+    const items: {
+        label: string;
+        value: string;
+        dir?: 'up' | 'down' | 'flat';
+        tone?: 'danger' | 'warn';
+    }[] = [];
     if (balance) {
         items.push({
             label: '證券交割帳戶 Balance',
@@ -403,14 +471,15 @@ function AccountView({
                 value: fmtMoney(margin.maintenance_margin),
             },
             {
+                // TAIFEX 風險指標：低於 100% 有追繳風險、過低會被代沖銷
                 label: '風險指標 Risk',
                 value: `${margin.risk_indicator.toFixed(0)}%`,
-                dir:
-                    margin.risk_indicator >= 100
-                        ? 'flat'
-                        : margin.risk_indicator >= 50
-                          ? 'up'
-                          : 'up',
+                tone:
+                    margin.risk_indicator < 100
+                        ? 'danger'
+                        : margin.risk_indicator < 200
+                          ? 'warn'
+                          : undefined,
             },
             {
                 label: '期貨平倉損益 Settle P&L',
@@ -442,6 +511,16 @@ function AccountView({
                     <span className={styles.statCardLabel}>{it.label}</span>
                     <span
                         className={`${styles.statCardValue} ${it.dir ? panel.dirText[it.dir] : ''}`}
+                        style={
+                            it.tone
+                                ? {
+                                      color:
+                                          it.tone === 'danger'
+                                              ? vars.color.danger
+                                              : vars.color.amber,
+                                  }
+                                : undefined
+                        }
                     >
                         {it.value}
                     </span>

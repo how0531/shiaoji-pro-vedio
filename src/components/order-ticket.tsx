@@ -39,6 +39,7 @@ export function OrderTicket({
     const [orderType, setOrderType] = useState<OrderType>('ROD');
     const [orderLot, setOrderLot] = useState<StockOrderLot>('Common');
     const [octype, setOctype] = useState<FuturesOCType>('Auto');
+    const [daytradeShort, setDaytradeShort] = useState(false);
     const [armed, setArmed] = useState(false);
     const [busy, setBusy] = useState(false);
     const [bracketOn, setBracketOn] = useState(false);
@@ -60,6 +61,7 @@ export function OrderTicket({
         setOrderType('ROD');
         setOrderLot('Common');
         setOctype('Auto');
+        setDaytradeShort(false);
         setBracketOn(false);
         setStopPrice('');
         setTakePrice('');
@@ -127,6 +129,10 @@ export function OrderTicket({
                       price_type: priceType as 'LMT' | 'MKT',
                       order_type: orderType,
                       order_lot: orderLot,
+                      daytrade_short:
+                          action === 'Sell' && daytradeShort
+                              ? true
+                              : undefined,
                   });
             setFeedback({
                 kind: 'ok',
@@ -349,6 +355,31 @@ export function OrderTicket({
                         </div>
                     </div>
                 )}
+
+                {!isFutures &&
+                    action === 'Sell' &&
+                    orderLot === 'Common' &&
+                    contract.day_trade === 'Yes' && (
+                        <div className={styles.fieldRow}>
+                            <span className={styles.fieldLabel}>沖賣</span>
+                            <div className={styles.segGroup}>
+                                <button
+                                    className={
+                                        styles.seg[daytradeShort ? 'on' : 'off']
+                                    }
+                                    title='現股當沖先賣（無券先賣，當日需回補）'
+                                    onClick={() => {
+                                        setDaytradeShort((v) => !v);
+                                        setArmed(false);
+                                    }}
+                                >
+                                    {daytradeShort
+                                        ? '✓ 現沖先賣（當日回補）'
+                                        : '現股當沖先賣'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                 <div className={styles.fieldRow}>
                     <span className={styles.fieldLabel}>括號單</span>

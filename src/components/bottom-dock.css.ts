@@ -160,6 +160,33 @@ export const qtyInline = style({
     outline: 'none',
 });
 
+export const detailCell = style({
+    fontSize: '0.62rem',
+    color: vars.color.mutedForeground,
+    whiteSpace: 'nowrap',
+});
+
+export const fillCell = style({
+    display: 'inline-flex',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: '2.4rem',
+});
+
+export const fillTrack = style({
+    display: 'block',
+    height: '3px',
+    borderRadius: '2px',
+    background: vars.color.muted,
+    overflow: 'hidden',
+});
+
+export const fillBar = style({
+    display: 'block',
+    height: '100%',
+    background: vars.color.amber,
+});
+
 export const emptyState = style({
     padding: vars.space.lg,
     textAlign: 'center',

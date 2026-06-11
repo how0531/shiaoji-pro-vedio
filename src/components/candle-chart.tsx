@@ -315,7 +315,21 @@ export function CandleChart({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [themeKey]);
 
-    // load kbars on symbol/timeframe change (and recolor volume on theme change)
+    // recolor volume bars from cached data on theme change — never refetch
+    useEffect(() => {
+        const bars = barsRef.current;
+        if (bars.length === 0) return;
+        volSeriesRef.current?.setData(
+            bars.map((b) => ({
+                time: b.time as UTCTimestamp,
+                value: b.volume,
+                color: b.close >= b.open ? colors.upVol : colors.downVol,
+            })),
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [themeKey]);
+
+    // load kbars on symbol/timeframe change
     useEffect(() => {
         let cancelled = false;
         lastBarRef.current = null;
@@ -355,7 +369,7 @@ export function CandleChart({
             cancelled = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [contract, tf, themeKey]);
+    }, [contract, tf]);
 
     // live tick -> update current bar
     const tick = quote?.tick;
@@ -512,6 +526,9 @@ export function CandleChart({
         if (!host) return;
         let dragging: { trade: Trade; line: IPriceLine; price: number } | null =
             null;
+        // active document listeners — removed on unmount if a drag is live
+        let activeMove: ((e: MouseEvent) => void) | null = null;
+        let activeUp: (() => void) | null = null;
 
         const yOf = (e: MouseEvent) =>
             e.clientY - host.getBoundingClientRect().top;
@@ -563,6 +580,8 @@ export function CandleChart({
             const up = () => {
                 document.removeEventListener('mousemove', move, true);
                 document.removeEventListener('mouseup', up, true);
+                activeMove = null;
+                activeUp = null;
                 chartRef.current?.applyOptions({
                     handleScroll: true,
                     handleScale: true,
@@ -596,6 +615,8 @@ export function CandleChart({
             };
             document.addEventListener('mousemove', move, true);
             document.addEventListener('mouseup', up, true);
+            activeMove = move;
+            activeUp = up;
         };
 
         host.addEventListener('mousedown', down, true); // capture: beat chart pan
@@ -603,6 +624,11 @@ export function CandleChart({
         return () => {
             host.removeEventListener('mousedown', down, true);
             host.removeEventListener('mousemove', hover, true);
+            // unmounted mid-drag — drop the document listeners too
+            if (activeMove) {
+                document.removeEventListener('mousemove', activeMove, true);
+            }
+            if (activeUp) document.removeEventListener('mouseup', activeUp, true);
         };
     }, []);
 

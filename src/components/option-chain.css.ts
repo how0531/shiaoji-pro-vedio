@@ -92,3 +92,8 @@ export const atmStrike = style({
     color: vars.color.accent,
     background: vars.color.accentDim,
 });
+
+export const pickableRow = style({
+    cursor: 'pointer',
+    ':hover': { background: vars.color.muted },
+});

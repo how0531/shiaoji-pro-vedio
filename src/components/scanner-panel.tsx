@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { fetchScanner } from '../lib/shioaji';
 import type { ScannerItem, ScannerType } from '../lib/types/market';
-import { fmtPct, fmtPrice } from '../lib/utils/format';
+import { fmtInt, fmtPct, fmtPrice } from '../lib/utils/format';
 import * as panel from './panel.css';
 import * as styles from './scanner-panel.css';
 
@@ -16,14 +16,27 @@ const MODES: { key: string; type: ScannerType; label: string; ascending: boolean
     { key: 'amt', type: 'AmountRank', label: '額', ascending: true },
 ];
 
+const MODE_KEY = 'sj-pro-scanner-mode';
+const REFRESH_MS = 15000;
+
+// 額 in 億 for readability
+function fmtAmount(amount: number): string {
+    if (!Number.isFinite(amount) || amount <= 0) return '';
+    return `${(amount / 1e8).toFixed(1)}億`;
+}
+
 export function ScannerPanel({
     onPick,
 }: {
     onPick: (code: string) => void;
 }) {
-    const [modeKey, setModeKey] = useState('gain');
+    const [modeKey, setModeKey] = useState(
+        () => localStorage.getItem(MODE_KEY) ?? 'gain',
+    );
     const [items, setItems] = useState<ScannerItem[]>([]);
     const [error, setError] = useState(false);
+    const [reloadSeq, setReloadSeq] = useState(0);
+    const [picked, setPicked] = useState<string | null>(null);
     const mode = MODES.find((m) => m.key === modeKey) ?? MODES[0]!;
 
     useEffect(() => {
@@ -31,15 +44,19 @@ export function ScannerPanel({
         setError(false);
         const load = () =>
             fetchScanner(mode.type, 20, mode.ascending)
-                .then((d) => !cancelled && setItems(d))
+                .then((d) => {
+                    if (cancelled) return;
+                    setItems(d);
+                    setError(false);
+                })
                 .catch(() => !cancelled && setError(true));
         load();
-        const t = setInterval(load, 30000);
+        const t = setInterval(load, REFRESH_MS);
         return () => {
             cancelled = true;
             clearInterval(t);
         };
-    }, [mode]);
+    }, [mode, reloadSeq]);
 
     return (
         <>
@@ -48,7 +65,10 @@ export function ScannerPanel({
                     <button
                         key={m.key}
                         className={styles.sw[modeKey === m.key ? 'on' : 'off']}
-                        onClick={() => setModeKey(m.key)}
+                        onClick={() => {
+                            setModeKey(m.key);
+                            localStorage.setItem(MODE_KEY, m.key);
+                        }}
                     >
                         {m.label}
                     </button>
@@ -56,11 +76,14 @@ export function ScannerPanel({
             </div>
             <div className={panel.panelBody}>
                 {error && (
-                    <div
-                        style={{ padding: '1rem', textAlign: 'center' }}
-                        className={styles.scName}
-                    >
-                        排行資料無法取得
+                    <div className={styles.errorBox}>
+                        <span className={styles.scName}>排行資料無法取得</span>
+                        <button
+                            className={styles.retryBtn}
+                            onClick={() => setReloadSeq((s) => s + 1)}
+                        >
+                            重試
+                        </button>
                     </div>
                 )}
                 {items.map((it, i) => {
@@ -70,23 +93,35 @@ export function ScannerPanel({
                             : it.change_price < 0
                               ? 'down'
                               : 'flat';
+                    // reference = close - change; guard zero/flat prices
+                    const ref = it.close - it.change_price;
                     const pct =
-                        it.close && it.change_price
-                            ? (it.change_price /
-                                  (it.close - it.change_price)) *
-                              100
+                        it.change_price && ref > 0
+                            ? (it.change_price / ref) * 100
                             : 0;
+                    const sub =
+                        mode.key === 'amt'
+                            ? fmtAmount(it.total_amount)
+                            : it.total_volume > 0
+                              ? fmtInt(it.total_volume)
+                              : '';
                     return (
                         <div
                             key={it.code}
-                            className={styles.row}
-                            onClick={() => onPick(it.code)}
+                            className={`${styles.row} ${
+                                picked === it.code ? styles.rowPicked : ''
+                            }`}
+                            onClick={() => {
+                                setPicked(it.code);
+                                onPick(it.code);
+                            }}
                         >
                             <span className={styles.rank}>
                                 {String(i + 1).padStart(2, '0')}
                             </span>
                             <span>{it.code}</span>
                             <span className={styles.scName}>{it.name}</span>
+                            <span className={styles.scSub}>{sub}</span>
                             <span
                                 className={`${styles.scValue} ${panel.dirText[dir]}`}
                             >

@@ -47,9 +47,17 @@ function isCall(c: OptContract): boolean {
     return c.option_right.toUpperCase().startsWith('C');
 }
 
-export function OptionChain() {
+const MONTH_KEY = 'sj-pro-optchain-month';
+
+export function OptionChain({
+    onPick,
+}: {
+    onPick?: (code: string) => void;
+}) {
     const [contracts, setContracts] = useState<OptContract[]>([]);
-    const [month, setMonth] = useState('');
+    const [month, setMonth] = useState(
+        () => localStorage.getItem(MONTH_KEY) ?? '',
+    );
     const [snaps, setSnaps] = useState<Map<string, Snapshot>>(new Map());
     const [loading, setLoading] = useState(true);
     const txf = useQuote('TXFR1');
@@ -61,7 +69,10 @@ export function OptionChain() {
                 const months = [...new Set(cs.map((c) => c.delivery_month))]
                     .filter(Boolean)
                     .sort();
-                if (months[0]) setMonth((m) => m || months[0]!);
+                // restore saved month if still listed, else front month
+                setMonth((m) =>
+                    m && months.includes(m) ? m : (months[0] ?? ''),
+                );
             })
             .finally(() => setLoading(false));
     }, []);
@@ -135,9 +146,25 @@ export function OptionChain() {
 
     useEffect(() => {
         refreshSnaps();
-        const t = setInterval(refreshSnaps, 10000);
+        const t = setInterval(refreshSnaps, 5000);
         return () => clearInterval(t);
     }, [refreshSnaps]);
+
+    // the strike closest to ATM — exact, not a fixed point distance
+    const nearestStrike = useMemo(() => {
+        if (atm === null || rows.length === 0) return null;
+        let best: number | null = null;
+        let bestDist = Infinity;
+        for (const r of rows) {
+            const d = Math.abs(r.strike - atm);
+            if (d < bestDist) {
+                bestDist = d;
+                best = r.strike;
+            }
+        }
+        return best;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rows, atm === null ? 0 : Math.round(atm / 10)]);
 
     if (loading) {
         return <div className={dock.emptyState}>載入 TXO 合約…</div>;
@@ -181,7 +208,10 @@ export function OptionChain() {
                     <button
                         key={m}
                         className={styles.month[m === month ? 'on' : 'off']}
-                        onClick={() => setMonth(m)}
+                        onClick={() => {
+                            setMonth(m);
+                            localStorage.setItem(MONTH_KEY, m);
+                        }}
                     >
                         {m.slice(0, 4)}/{m.slice(4)}
                     </button>
@@ -219,26 +249,43 @@ export function OptionChain() {
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.map((r) => {
-                            const itm = atm !== null && r.strike <= atm;
-                            return (
-                                <tr key={r.strike}>
-                                    <Cell code={r.call?.code} />
-                                    <td
-                                        className={`${styles.strike} ${
-                                            atm !== null &&
-                                            Math.abs(r.strike - atm) < 50
-                                                ? styles.atmStrike
-                                                : ''
-                                        }`}
-                                    >
-                                        {fmtPrice(r.strike, 0)}
-                                    </td>
-                                    <Cell code={r.put?.code} />
-                                    {void itm}
-                                </tr>
-                            );
-                        })}
+                        {rows.map((r) => (
+                            <tr
+                                key={r.strike}
+                                className={onPick ? styles.pickableRow : ''}
+                                title={
+                                    onPick
+                                        ? '點 CALL 側連動買權、PUT 側連動賣權'
+                                        : undefined
+                                }
+                                onClick={(e) => {
+                                    if (!onPick) return;
+                                    // left half of the row → call, right → put
+                                    const rect = (
+                                        e.currentTarget as HTMLElement
+                                    ).getBoundingClientRect();
+                                    const left =
+                                        e.clientX - rect.left <
+                                        rect.width / 2;
+                                    const code = left
+                                        ? r.call?.code
+                                        : r.put?.code;
+                                    if (code) onPick(code);
+                                }}
+                            >
+                                <Cell code={r.call?.code} />
+                                <td
+                                    className={`${styles.strike} ${
+                                        r.strike === nearestStrike
+                                            ? styles.atmStrike
+                                            : ''
+                                    }`}
+                                >
+                                    {fmtPrice(r.strike, 0)}
+                                </td>
+                                <Cell code={r.put?.code} />
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
             </div>

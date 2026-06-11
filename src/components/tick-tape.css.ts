@@ -19,6 +19,14 @@ export const tapeRow = style({
     borderBottom: `1px solid rgba(34, 43, 55, 0.45)`,
 });
 
+// big-lot rows pop with a subtle amber wash + bold volume
+export const tapeRowBig = style([
+    tapeRow,
+    {
+        background: 'rgba(224, 164, 60, 0.07)',
+    },
+]);
+
 export const time = style({
     color: vars.color.mutedForeground,
 });
@@ -27,3 +35,11 @@ export const vol = style({
     textAlign: 'right',
     color: vars.color.mutedForeground,
 });
+
+export const volBig = style([
+    vol,
+    {
+        color: vars.color.amber,
+        fontWeight: 700,
+    },
+]);

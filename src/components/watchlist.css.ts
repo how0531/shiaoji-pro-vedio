@@ -65,10 +65,21 @@ export const change = style({
     fontVariantNumeric: 'tabular-nums',
 });
 
-export const flash = styleVariants({
-    up: { animation: 'flash-up 0.5s ease-out' },
-    down: { animation: 'flash-down 0.5s ease-out' },
-    none: {},
+// flash plays on a keyed overlay so the row itself never remounts
+// (remounting dropped hover state and thrashed the DOM on every deal)
+const flashOverlayBase = style({
+    position: 'absolute',
+    inset: 0,
+    pointerEvents: 'none',
+});
+
+export const flashOverlay = styleVariants({
+    up: [flashOverlayBase, { animation: 'flash-up 0.5s ease-out' }],
+    down: [flashOverlayBase, { animation: 'flash-down 0.5s ease-out' }],
+});
+
+export const dropTarget = style({
+    boxShadow: `inset 0 2px 0 ${vars.color.accent}`,
 });
 
 export const removeBtn = style({

@@ -29,9 +29,20 @@ export function QuoteBoard({
     const high = tick ? Number(tick.high) : snapshot?.high;
     const low = tick ? Number(tick.low) : snapshot?.low;
     const vol = tick?.total_volume ?? snapshot?.total_volume;
+    const bidask = quote?.bidask;
+    const bid1 = bidask ? Number(bidask.bid_price[0]) : undefined;
+    const ask1 = bidask ? Number(bidask.ask_price[0]) : undefined;
 
     const dir =
         chg === undefined || chg === 0 ? 'flat' : chg > 0 ? 'up' : 'down';
+    const atLimit =
+        close !== undefined && contract.limit_up > 0
+            ? close >= contract.limit_up
+                ? 'up'
+                : contract.limit_down > 0 && close <= contract.limit_down
+                  ? 'down'
+                  : null
+            : null;
 
     return (
         <div className={`${styles.board} drag-handle`}>
@@ -41,6 +52,11 @@ export function QuoteBoard({
             </div>
 
             <span className={styles.bigPrice[dir]}>{fmtPrice(close)}</span>
+            {atLimit && (
+                <span className={styles.limitBadge[atLimit]}>
+                    {atLimit === 'up' ? '漲停' : '跌停'}
+                </span>
+            )}
 
             <div className={`${styles.changeBlock} ${panel.dirText[dir]}`}>
                 <span>{fmtSigned(chg)}</span>
@@ -73,6 +89,22 @@ export function QuoteBoard({
                 </span>
                 <span className={styles.statValue}>
                     {tick?.time?.slice(0, 8) ?? '—'}
+                </span>
+                <span className={styles.statLabel}>委買</span>
+                <span className={styles.statLabel}>買量</span>
+                <span className={styles.statLabel}>委賣</span>
+                <span className={styles.statLabel}>賣量</span>
+                <span className={`${styles.statValue} ${panel.dirText.up}`}>
+                    {fmtPrice(bid1)}
+                </span>
+                <span className={styles.statValue}>
+                    {bidask ? fmtInt(bidask.bid_volume[0] ?? 0) : '—'}
+                </span>
+                <span className={`${styles.statValue} ${panel.dirText.down}`}>
+                    {fmtPrice(ask1)}
+                </span>
+                <span className={styles.statValue}>
+                    {bidask ? fmtInt(bidask.ask_volume[0] ?? 0) : '—'}
                 </span>
             </div>
         </div>

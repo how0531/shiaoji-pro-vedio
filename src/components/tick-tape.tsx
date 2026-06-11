@@ -1,8 +1,9 @@
 // src/components/tick-tape.tsx — time & sales feed.
 // Preloads today's recent history ticks, then streams live deals on top.
 // Times show full microsecond precision (HH:MM:SS.ffffff).
+// Big lots (≥3× the rolling average of visible rows) are highlighted.
 
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { fetchLastTicks } from '../lib/shioaji';
 import { onAnyTick } from '../lib/stream';
 import type { ContractBase } from '../lib/types/contract';
@@ -13,13 +14,17 @@ import * as panel from './panel.css';
 import * as styles from './tick-tape.css';
 
 const MAX_ROWS = 120;
+const BIG_LOT_FACTOR = 3;
 
 interface TapeRow {
+    id: number; // monotonic — stable React key
     time: string; // HH:MM:SS.ffffff
     close: number | string;
     volume: number;
     tick_type: number; // 1=buy 2=sell 0=unknown
 }
+
+let rowSeq = 0;
 
 // normalize to HH:MM:SS.ffffff (6 fraction digits)
 function fmtTickTime(t: string): string {
@@ -50,6 +55,36 @@ async function loadHistory(
     return fetchLastTicks(contract, count);
 }
 
+const TapeRowView = memo(function TapeRowView({
+    time,
+    close,
+    volume,
+    tickType,
+    big,
+}: {
+    time: string;
+    close: number | string;
+    volume: number;
+    tickType: number;
+    big: boolean;
+}) {
+    const dir = tickType === 1 ? 'up' : tickType === 2 ? 'down' : 'flat';
+    return (
+        <div className={big ? styles.tapeRowBig : styles.tapeRow}>
+            <span className={styles.time}>{time}</span>
+            <span
+                className={panel.dirText[dir]}
+                style={{ textAlign: 'right' }}
+            >
+                {fmtPrice(close)}
+            </span>
+            <span className={big ? styles.volBig : styles.vol}>
+                {fmtInt(volume)}
+            </span>
+        </div>
+    );
+});
+
 export function TickTape({ contract }: { contract: ContractBase }) {
     const [rows, setRows] = useState<TapeRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -68,6 +103,7 @@ export function TickTape({ contract }: { contract: ContractBase }) {
                     const dt = h.datetime[i];
                     if (!dt) continue;
                     hist.push({
+                        id: rowSeq++,
                         time: fmtTickTime(dt.slice(11)),
                         close: h.close[i] ?? 0,
                         volume: h.volume[i] ?? 0,
@@ -87,6 +123,7 @@ export function TickTape({ contract }: { contract: ContractBase }) {
             setRows((prev) =>
                 [
                     {
+                        id: rowSeq++,
                         time: fmtTickTime(tick.time),
                         close: tick.close,
                         volume: tick.volume,
@@ -101,6 +138,13 @@ export function TickTape({ contract }: { contract: ContractBase }) {
             off();
         };
     }, [contract]);
+
+    // big-lot threshold from the rolling average of visible rows
+    const bigThreshold = useMemo(() => {
+        if (rows.length < 10) return Infinity;
+        const sum = rows.reduce((s, r) => s + r.volume, 0);
+        return Math.max(5, (sum / rows.length) * BIG_LOT_FACTOR);
+    }, [rows]);
 
     return (
         <div className={panel.panelBody}>
@@ -117,28 +161,16 @@ export function TickTape({ contract }: { contract: ContractBase }) {
                         <span />
                     </span>
                 )}
-                {rows.map((t, i) => {
-                    const dir =
-                        t.tick_type === 1
-                            ? 'up'
-                            : t.tick_type === 2
-                              ? 'down'
-                              : 'flat';
-                    return (
-                        <div key={`${t.time}-${i}`} className={styles.tapeRow}>
-                            <span className={styles.time}>{t.time}</span>
-                            <span
-                                className={panel.dirText[dir]}
-                                style={{ textAlign: 'right' }}
-                            >
-                                {fmtPrice(t.close)}
-                            </span>
-                            <span className={styles.vol}>
-                                {fmtInt(t.volume)}
-                            </span>
-                        </div>
-                    );
-                })}
+                {rows.map((t) => (
+                    <TapeRowView
+                        key={t.id}
+                        time={t.time}
+                        close={t.close}
+                        volume={t.volume}
+                        tickType={t.tick_type}
+                        big={t.volume >= bigThreshold}
+                    />
+                ))}
             </div>
         </div>
     );

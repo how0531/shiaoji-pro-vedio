@@ -1,7 +1,7 @@
 // src/App.tsx — Shioaji Pro trading terminal
 // Dynamic panel blocks on a draggable grid, with named layout profiles.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GridLayout, {
     useContainerWidth,
     type Layout,
@@ -42,6 +42,7 @@ import {
     fetchPositions,
     fetchTrades,
 } from './lib/shioaji';
+import { onOrderEvent } from './lib/stream';
 import { notify } from './lib/trade';
 import type { ContractInfo } from './lib/types/contract';
 import type { Trade } from './lib/types/order';
@@ -182,7 +183,7 @@ function BlockBody({
                 <BlockPlaceholder />
             );
         case 'optchain':
-            return <OptionChain />;
+            return <OptionChain onPick={onSelectCode} />;
         case 'replay':
             return contract ? (
                 <ReplayPanel contract={contract} />
@@ -365,6 +366,7 @@ export default function App() {
         initialLoading,
         addSymbol,
         removeSymbol,
+        reorderSymbol,
         serverLists,
         activeListId,
         setActiveList,
@@ -423,6 +425,22 @@ export default function App() {
         balancePoll.refresh();
         marginPoll.refresh();
     }, [tradesPoll, positionsPoll, balancePoll, marginPoll]);
+    const refreshTradingRef = useRef(refreshTrading);
+    refreshTradingRef.current = refreshTrading;
+
+    // order events drive an immediate (debounced) refresh — fills and
+    // cancels reach every panel within ~0.5s instead of the next poll
+    useEffect(() => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const off = onOrderEvent(() => {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => refreshTradingRef.current(), 500);
+        });
+        return () => {
+            off();
+            if (timer) clearTimeout(timer);
+        };
+    }, []);
 
     // feed risk engine: unrealized position P&L + futures settle P&L
     useEffect(() => {
@@ -630,6 +648,7 @@ export default function App() {
         onSelect: setSelected,
         onAdd: addSymbol,
         onRemove: removeSymbol,
+        onReorder: reorderSymbol,
         serverLists,
         activeListId,
         onSelectList: setActiveList,

@@ -38,7 +38,7 @@ export const sw = styleVariants({
 
 export const row = style({
     display: 'grid',
-    gridTemplateColumns: '1.4rem 3.4rem 1fr auto',
+    gridTemplateColumns: '1.4rem 3.4rem 1fr auto auto',
     alignItems: 'center',
     columnGap: vars.space.xs,
     padding: `3px ${vars.space.sm}`,
@@ -48,6 +48,35 @@ export const row = style({
     cursor: 'pointer',
     borderBottom: `1px solid rgba(34, 43, 55, 0.45)`,
     ':hover': { background: vars.color.muted },
+});
+
+export const rowPicked = style({
+    background: vars.color.accentDim,
+});
+
+export const scSub = style({
+    textAlign: 'right',
+    color: vars.color.mutedForeground,
+    fontSize: '0.62rem',
+});
+
+export const errorBox = style({
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: vars.space.xs,
+    padding: '1rem',
+});
+
+export const retryBtn = style({
+    fontFamily: vars.font.body,
+    fontSize: '0.66rem',
+    color: vars.color.accent,
+    background: 'transparent',
+    border: `1px solid ${vars.color.accent}`,
+    borderRadius: vars.radius.sm,
+    padding: '2px 12px',
+    cursor: 'pointer',
 });
 
 export const rank = style({

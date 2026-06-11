@@ -186,6 +186,29 @@ export function useWatchlist() {
         [persistItems],
     );
 
+    // drag-to-reorder: move `fromCode` to the position of `toCode`
+    const reorderSymbol = useCallback(
+        (fromCode: string, toCode: string) => {
+            setItems((prev) => {
+                const fromIdx = prev.findIndex(
+                    (i) => i.contract.code === fromCode,
+                );
+                const toIdx = prev.findIndex(
+                    (i) => i.contract.code === toCode,
+                );
+                if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) {
+                    return prev;
+                }
+                const next = [...prev];
+                const [moved] = next.splice(fromIdx, 1);
+                next.splice(toIdx, 0, moved!);
+                persistItems(next);
+                return next;
+            });
+        },
+        [persistItems],
+    );
+
     const createList = useCallback(
         async (name: string) => {
             const wl = await createWatchlist(name, []);
@@ -287,6 +310,7 @@ export function useWatchlist() {
         initialLoading,
         addSymbol,
         removeSymbol,
+        reorderSymbol,
         serverLists,
         activeListId,
         setActiveList,

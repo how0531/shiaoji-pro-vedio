@@ -103,3 +103,23 @@ export const totals = style({
     borderTop: `1px solid ${vars.color.border}`,
     marginTop: '2px',
 });
+
+export const spread = style({
+    fontSize: '0.62rem',
+    color: vars.color.mutedForeground,
+});
+
+// 5-level bid/ask force gauge
+export const forceTrack = style({
+    height: '4px',
+    borderRadius: '2px',
+    background: vars.color.down,
+    overflow: 'hidden',
+    marginTop: '3px',
+});
+
+export const forceBid = style({
+    height: '100%',
+    background: vars.color.up,
+    transition: 'width 0.25s ease',
+});

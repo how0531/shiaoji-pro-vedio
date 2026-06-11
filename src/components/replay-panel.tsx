@@ -36,6 +36,11 @@ export function ReplayPanel({ contract }: { contract: ContractBase }) {
     const chartRef = useRef<IChartApi | null>(null);
     const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
     const ticksRef = useRef<ReplayTick[]>([]);
+    // precomputed at load so seeking is a slice, not an O(n) sort per move:
+    // one point per unique second (last price wins) + tick index → point count
+    const pointsRef = useRef<{ time: UTCTimestamp; value: number }[]>([]);
+    const tickToPointRef = useRef<number[]>([]);
+    const seekRaf = useRef(0);
     const idxRef = useRef(0);
     const [loaded, setLoaded] = useState(false);
     const [empty, setEmpty] = useState(false);
@@ -114,6 +119,29 @@ export function ReplayPanel({ contract }: { contract: ContractBase }) {
                         }
                         if (!cancelled) {
                             ticksRef.current = ticks;
+                            // build the seek index
+                            const points: {
+                                time: UTCTimestamp;
+                                value: number;
+                            }[] = [];
+                            const tickToPoint: number[] = new Array(
+                                ticks.length,
+                            );
+                            for (let i = 0; i < ticks.length; i++) {
+                                const t = ticks[i]!;
+                                const last = points[points.length - 1];
+                                if (last && last.time === t.time) {
+                                    last.value = t.price;
+                                } else if (!last || t.time > last.time) {
+                                    points.push({
+                                        time: t.time as UTCTimestamp,
+                                        value: t.price,
+                                    });
+                                }
+                                tickToPoint[i] = points.length;
+                            }
+                            pointsRef.current = points;
+                            tickToPointRef.current = tickToPoint;
                             seriesRef.current?.setData([]);
                             setLoaded(true);
                         }
@@ -161,25 +189,25 @@ export function ReplayPanel({ contract }: { contract: ContractBase }) {
         return () => clearInterval(interval);
     }, [playing, speedIdx]);
 
+    // slice the precomputed points; rAF-coalesced so dragging the slider
+    // issues at most one setData per frame
     const seek = (idx: number) => {
-        const ticks = ticksRef.current;
-        const series = seriesRef.current;
-        if (!series) return;
         idxRef.current = idx;
-        const seen = new Map<number, number>();
-        for (let i = 0; i < idx; i++) {
-            const t = ticks[i];
-            if (t) seen.set(t.time, t.price);
-        }
-        series.setData(
-            [...seen.entries()]
-                .sort((a, b) => a[0] - b[0])
-                .map(([time, value]) => ({
-                    time: time as UTCTimestamp,
-                    value,
-                })),
-        );
         force((v) => v + 1);
+        if (seekRaf.current) return;
+        seekRaf.current = requestAnimationFrame(() => {
+            seekRaf.current = 0;
+            const series = seriesRef.current;
+            if (!series) return;
+            const i = idxRef.current;
+            const count =
+                i <= 0
+                    ? 0
+                    : (tickToPointRef.current[
+                          Math.min(i, tickToPointRef.current.length) - 1
+                      ] ?? 0);
+            series.setData(pointsRef.current.slice(0, count));
+        });
     };
 
     const ticks = ticksRef.current;

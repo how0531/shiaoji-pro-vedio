@@ -1,7 +1,8 @@
 // src/components/watchlist.tsx — server-backed editable watchlists.
-// Pick a list, add symbols (type auto-detected), hover a row to remove.
+// Pick a list, add symbols (type auto-detected), hover a row to remove,
+// drag rows to reorder (persisted to the server).
 
-import { useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import type { WatchItem } from '../hooks/use-watchlist';
 import type { ServerWatchlist } from '../lib/shioaji';
@@ -10,16 +11,24 @@ import { fmtPct, fmtPrice, fmtSigned } from '../lib/utils/format';
 import * as panel from './panel.css';
 import * as styles from './watchlist.css';
 
-function WatchRow({
+const WatchRow = memo(function WatchRow({
     item,
     selected,
+    dropTarget,
     onSelect,
     onRemove,
+    onDragStart,
+    onDragOver,
+    onDrop,
 }: {
     item: WatchItem;
     selected: boolean;
+    dropTarget: boolean;
     onSelect: (c: ContractInfo) => void;
     onRemove: (code: string) => void;
+    onDragStart: (code: string) => void;
+    onDragOver: (code: string) => void;
+    onDrop: () => void;
 }) {
     const quote = useQuote(item.contract.code);
     const tick = quote?.tick;
@@ -38,16 +47,40 @@ function WatchRow({
           : undefined;
 
     const dir = chg === undefined || chg === 0 ? 'flat' : chg > 0 ? 'up' : 'down';
-    // re-key by flashSeq so the flash animation replays only on real deals
-    const flashDir =
-        !quote?.flashSeq ? 'none' : quote.lastDir === -1 ? 'down' : 'up';
+    // the flash overlay is re-keyed by flashSeq so the animation replays on
+    // every real deal — the row itself stays mounted (hover state survives)
+    const flashDir = !quote?.flashSeq
+        ? null
+        : quote.lastDir === -1
+          ? ('down' as const)
+          : ('up' as const);
 
     return (
         <div
-            key={`${item.contract.code}-${quote?.flashSeq ?? 0}`}
-            className={`${styles.row[selected ? 'selected' : 'normal']} ${styles.flash[flashDir]}`}
+            className={`${styles.row[selected ? 'selected' : 'normal']} ${
+                dropTarget ? styles.dropTarget : ''
+            }`}
+            draggable
             onClick={() => onSelect(item.contract)}
+            onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                onDragStart(item.contract.code);
+            }}
+            onDragOver={(e) => {
+                e.preventDefault();
+                onDragOver(item.contract.code);
+            }}
+            onDrop={(e) => {
+                e.preventDefault();
+                onDrop();
+            }}
         >
+            {flashDir && (
+                <span
+                    key={quote?.flashSeq}
+                    className={styles.flashOverlay[flashDir]}
+                />
+            )}
             <span className={styles.code}>{item.contract.code}</span>
             <span className={`${styles.price} ${panel.dirText[dir]}`}>
                 {fmtPrice(close)}
@@ -68,7 +101,7 @@ function WatchRow({
             </button>
         </div>
     );
-}
+});
 
 export function Watchlist({
     items,
@@ -76,6 +109,7 @@ export function Watchlist({
     onSelect,
     onAdd,
     onRemove,
+    onReorder,
     serverLists,
     activeListId,
     onSelectList,
@@ -88,6 +122,7 @@ export function Watchlist({
     onSelect: (c: ContractInfo) => void;
     onAdd: (code: string) => Promise<unknown>;
     onRemove: (code: string) => void;
+    onReorder: (fromCode: string, toCode: string) => void;
     serverLists: ServerWatchlist[];
     activeListId: string;
     onSelectList: (id: string) => void;
@@ -100,6 +135,24 @@ export function Watchlist({
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const dragCode = useRef<string | null>(null);
+    // ref mirrors the state — drop can fire in the same frame as the last
+    // dragover, before React commits the state update
+    const dropCodeRef = useRef<string | null>(null);
+    const [dropCode, setDropCode] = useState<string | null>(null);
+    const setDropTarget = (code: string) => {
+        dropCodeRef.current = code;
+        setDropCode(code);
+    };
+
+    const handleDrop = () => {
+        const from = dragCode.current;
+        const to = dropCodeRef.current;
+        dragCode.current = null;
+        dropCodeRef.current = null;
+        setDropCode(null);
+        if (from && to && from !== to) onReorder(from, to);
+    };
 
     const submit = async () => {
         const code = input.trim().toUpperCase();
@@ -215,8 +268,14 @@ export function Watchlist({
                             key={item.contract.code}
                             item={item}
                             selected={item.contract.code === selectedCode}
+                            dropTarget={item.contract.code === dropCode}
                             onSelect={onSelect}
                             onRemove={onRemove}
+                            onDragStart={(code) => {
+                                dragCode.current = code;
+                            }}
+                            onDragOver={setDropTarget}
+                            onDrop={handleDrop}
                         />
                     ))}
                 </div>
