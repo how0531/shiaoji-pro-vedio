@@ -123,11 +123,8 @@ Shioaji server 可直接代管前端，build 完上傳即可：
 ```sh
 VITE_BASE=/apps/shioaji-pro-app/ pnpm build
 cd dist
-curl -X POST http://localhost:8080/api/v1/apps/shioaji-pro-app \
-  -F "files=@index.html" \
-  -F "files=@$(ls *.css)" \
-  -F "files=@$(ls *.js)" \
-  -F "files=@shioaji-logo.png"
+ARGS=(); for f in *; do ARGS+=(-F "files=@$f"); done
+curl -X POST http://localhost:8080/api/v1/apps/shioaji-pro-app "${ARGS[@]}"
 ```
 
 然後開啟 `http://localhost:8080/apps/shioaji-pro-app/index.html`。
