@@ -384,18 +384,29 @@ export const priceCell = style([
     },
 ]);
 
-export const bandUp = style({ color: vars.color.up });
-export const bandDown = style({ color: vars.color.down });
+// limit-up/down rows: price cell filled solid in the limit color
+export const bandUp = style({
+    background: vars.color.up,
+    color: '#fff',
+    fontWeight: 700,
+});
+export const bandDown = style({
+    background: vars.color.down,
+    color: '#fff',
+    fontWeight: 700,
+});
 
 // average-cost marker on the price cell
 export const avgMark = style({
     boxShadow: `inset 3px 0 0 ${vars.color.amber}`,
 });
 
+// inherits the cell color so it stays readable on filled limit rows
 export const lastVol = style({
     fontSize: '0.58rem',
     fontWeight: 400,
-    color: vars.color.mutedForeground,
+    color: 'inherit',
+    opacity: 0.75,
 });
 
 const volBarBase = style({

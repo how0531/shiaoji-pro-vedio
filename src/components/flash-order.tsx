@@ -114,6 +114,13 @@ const FlashRow = memo(function FlashRow({
                           ? styles.bandDown
                           : ''
                 } ${avgMark ? styles.avgMark : ''}`}
+                title={
+                    band === 'up'
+                        ? '漲停'
+                        : band === 'down'
+                          ? '跌停'
+                          : undefined
+                }
             >
                 {text}
                 {isLast && lastVol > 0 && (
@@ -235,17 +242,21 @@ export function FlashOrder({
     // clamped to limit-up/down
     const rows = useMemo(() => {
         if (anchor === null) return [] as number[];
+        // the anchor itself must stay inside the price limits
+        let center = anchor;
+        if (limitUp > 0 && center > limitUp) center = limitUp;
+        if (limitDown > 0 && center < limitDown) center = limitDown;
         const half = Math.floor(rowCount / 2);
         const up: number[] = [];
-        let p = anchor;
+        let p = center;
         for (let i = 0; i < half; i++) {
             const n = stepPrice(contract, p, 1);
             if (limitUp > 0 && n > limitUp + 1e-9) break;
             up.push(n);
             p = n;
         }
-        const out = [...up.reverse(), anchor];
-        p = anchor;
+        const out = [...up.reverse(), center];
+        p = center;
         for (let i = 0; i < rowCount - 1 - up.length; i++) {
             const n = stepPrice(contract, p, -1);
             if (n <= 0) break;
@@ -304,9 +315,15 @@ export function FlashOrder({
             if (ticks === 0) return;
             wheelAccum.current -= ticks * ROW_H;
             setFollow(false);
-            setAnchor((a) =>
-                a === null ? a : stepPrice(contractRef.current, a, -ticks),
-            );
+            setAnchor((a) => {
+                if (a === null) return a;
+                const c = contractRef.current;
+                let n = stepPrice(c, a, -ticks);
+                // scrolling stops at the price limits
+                if (c.limit_up > 0 && n > c.limit_up) n = c.limit_up;
+                if (c.limit_down > 0 && n < c.limit_down) n = c.limit_down;
+                return n;
+            });
         };
         el.addEventListener('wheel', onWheel, { passive: false });
         return () => el.removeEventListener('wheel', onWheel);
