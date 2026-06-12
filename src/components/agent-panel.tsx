@@ -2,7 +2,7 @@
 // with the built-in shioaji skill, user-defined skills (/名稱 invokes),
 // scheduled & triggered tasks, run history, and provider settings.
 
-import { Check, Play, Trash2, X } from 'lucide-react';
+import { Check, Play, Trash2, Wrench, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import {
     getAgentKey,
@@ -109,7 +109,7 @@ function ChatTab() {
                     blocks: [
                         {
                             type: 'text',
-                            text: `❌ ${e instanceof Error ? e.message : String(e)}`,
+                            text: `[錯誤] ${e instanceof Error ? e.message : String(e)}`,
                         },
                     ],
                 },
@@ -165,7 +165,7 @@ function ChatTab() {
                             if (b.type === 'tool') {
                                 return (
                                     <span key={j} className={styles.toolNote}>
-                                        ⚒ {b.name}
+                                        <Wrench size={9} /> {b.name}
                                     </span>
                                 );
                             }

@@ -1,7 +1,7 @@
 // src/components/server-manager.tsx — desktop-only shioaji server控制台:
 // status, start/stop/restart, API-key settings, simulation/production mode.
 
-import { RefreshCw, X } from 'lucide-react';
+import { Play, RefreshCw, RotateCcw, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { usePoll } from '../hooks/use-poll';
 import { useStreamStatus } from '../hooks/use-stream';
@@ -205,10 +205,10 @@ export function ServerManager({
                         </span>
                         <span className={styles.emptyHint}>
                             {phase === 'starting' &&
-                                '⏳ 啟動中 — 登入與載入合約約需 10–30 秒…'}
+                                '啟動中 — 登入與載入合約約需 10–30 秒…'}
                             {phase === 'connecting' &&
                                 status?.running &&
-                                '🔄 已啟動，等待行情連線…'}
+                                '已啟動，等待行情連線…'}
                             {(phase === 'ok' ||
                                 (status?.running && phase !== 'starting')) && (
                                 <>
@@ -267,6 +267,7 @@ export function ServerManager({
                                 disabled={busy}
                                 onClick={doStart}
                             >
+                                <Play size={11} style={{ verticalAlign: '-1px' }} />{' '}
                                 啟動
                             </button>
                             <button
@@ -274,6 +275,7 @@ export function ServerManager({
                                 disabled={busy}
                                 onClick={doRestart}
                             >
+                                <RotateCcw size={11} style={{ verticalAlign: '-1px' }} />{' '}
                                 重啟
                             </button>
                             <button
@@ -281,6 +283,7 @@ export function ServerManager({
                                 disabled={busy}
                                 onClick={doStop}
                             >
+                                <Square size={10} style={{ verticalAlign: '-1px' }} />{' '}
                                 停止
                             </button>
                         </div>

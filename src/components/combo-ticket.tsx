@@ -3,6 +3,7 @@
 // buying the combo lifts the Buy legs' asks and hits the Sell legs' bids,
 // so 合成買價 = Σ(±bid/ask) accordingly. Working combos listed with cancel.
 
+import { Crosshair } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import { usePoll } from '../hooks/use-poll';
@@ -396,7 +397,14 @@ export function ComboTicket() {
                         setWatchOn((v) => !v);
                     }}
                 >
-                    {watchOn ? `🎯 監控中 ${attempts}/${MAX_ATTEMPTS}` : '啟動監控'}
+                    {watchOn ? (
+                        <>
+                            <Crosshair size={10} style={{ verticalAlign: '-1px' }} />{' '}
+                            監控中 {attempts}/{MAX_ATTEMPTS}
+                        </>
+                    ) : (
+                        '啟動監控'
+                    )}
                 </button>
             </div>
             {watchOn && (

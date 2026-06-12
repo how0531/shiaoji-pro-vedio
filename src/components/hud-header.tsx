@@ -1,6 +1,6 @@
 // src/components/hud-header.tsx — top status bar with workspace menus
 
-import { Eye, EyeOff, Volume2, VolumeX, X, Zap } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Volume2, VolumeX, X, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useStreamStatus } from '../hooks/use-stream';
 import {
@@ -315,7 +315,17 @@ function RiskMenu() {
     const risk = useRiskSettings();
     const dailyPnl = getDailyPnl();
     return (
-        <Menu label={risk.locked ? '🔒 風控鎖定' : '風控'}>
+        <Menu
+            label={
+                risk.locked ? (
+                    <>
+                        <Lock size={11} style={{ verticalAlign: '-1px' }} /> 風控鎖定
+                    </>
+                ) : (
+                    '風控'
+                )
+            }
+        >
             {() => (
                 <>
                     <button
@@ -329,8 +339,18 @@ function RiskMenu() {
                         }
                     >
                         {risk.locked
-                            ? '🔓 解除鎖定（恢復下單）'
-                            : '🔒 鎖定下單 Kill Switch'}
+                            ? (
+                                  <>
+                                      <Unlock size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                      解除鎖定（恢復下單）
+                                  </>
+                              )
+                            : (
+                                  <>
+                                      <Lock size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                      鎖定下單 Kill Switch
+                                  </>
+                              )}
                     </button>
                     <span className={styles.settingLabel}>
                         風控規則 Rules

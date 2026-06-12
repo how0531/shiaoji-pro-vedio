@@ -4,6 +4,7 @@
 // moves so the ladder keeps its distance. Grid orders are tagged with
 // custom_field so only our own orders are touched.
 
+import { RefreshCw, Zap } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import { checkOrderAllowed } from '../lib/risk';
@@ -318,7 +319,13 @@ export function GridTicket({
                     if (armed) setFollow(false);
                 }}
             >
-                {armed ? '⚡ 已解鎖' : '解鎖鋪單'}
+                {armed ? (
+                    <>
+                        <Zap size={10} style={{ verticalAlign: '-1px' }} /> 已解鎖
+                    </>
+                ) : (
+                    '解鎖鋪單'
+                )}
             </button>
 
             <div className={styles.fieldRow}>
@@ -347,7 +354,14 @@ export function GridTicket({
                 title='價格移動時自動撤舊補新，維持與現價的相對距離'
                 onClick={() => setFollow((f) => !f)}
             >
-                {follow ? '🔄 動態跟隨中（每 2.5s 校正）' : '動態跟隨現價'}
+                {follow ? (
+                    <>
+                        <RefreshCw size={10} style={{ verticalAlign: '-1px' }} />{' '}
+                        動態跟隨中（每 2.5s 校正）
+                    </>
+                ) : (
+                    '動態跟隨現價'
+                )}
             </button>
 
             {gridOrders.length > 0 && (

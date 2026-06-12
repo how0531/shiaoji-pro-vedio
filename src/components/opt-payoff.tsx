@@ -3,7 +3,7 @@
 // legs: real positions of a chosen expiry can be toggled in, simulated
 // legs added freely. Settlement intrinsic only — no time value.
 
-import { X } from 'lucide-react';
+import { FlaskConical, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import { ensureContract } from '../lib/contracts-cache';
@@ -286,7 +286,9 @@ export function OptPayoff({ positions = [] }: { positions?: Position[] }) {
                             }
                         />
                         <span className={styles.legLabel}>
-                            {l.simulated ? '🧪 ' : ''}
+                            {l.simulated && (
+                                <FlaskConical size={10} style={{ verticalAlign: '-1px' }} />
+                            )}{' '}
                             {l.label}
                         </span>
                         {l.simulated && (

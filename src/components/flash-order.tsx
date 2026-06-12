@@ -6,6 +6,7 @@
 // price). Click bid/ask columns to fire LMT orders, click your own order
 // chips to cancel, market buy/sell + flatten + cancel-all in the action bar.
 
+import { Zap } from 'lucide-react';
 import {
     memo,
     useCallback,
@@ -596,7 +597,14 @@ export function FlashOrder({
                     className={styles.armBtn[armed ? 'on' : 'off']}
                     onClick={() => setArmed((a) => !a)}
                 >
-                    {armed ? '⚡ 點價即下單' : '啟用閃電下單'}
+                    {armed ? (
+                        <>
+                            <Zap size={10} style={{ verticalAlign: '-1px' }} />{' '}
+                            點價即下單
+                        </>
+                    ) : (
+                        '啟用閃電下單'
+                    )}
                 </button>
                 <button
                     className={styles.followBtn[follow ? 'on' : 'off']}

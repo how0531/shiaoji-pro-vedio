@@ -9,6 +9,7 @@ import {
     type ISeriesApi,
     type UTCTimestamp,
 } from 'lightweight-charts';
+import { Pause, Play } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { fetchHistoryTicks } from '../lib/shioaji';
 import { getChartColors, useThemeSettings } from '../lib/theme-store';
@@ -229,7 +230,15 @@ export function ReplayPanel({ contract }: { contract: ContractBase }) {
                         setPlaying((p) => !p);
                     }}
                 >
-                    {playing ? '⏸ 暫停' : '▶ 播放'}
+                    {playing ? (
+                        <>
+                            <Pause size={11} style={{ verticalAlign: '-1px' }} /> 暫停
+                        </>
+                    ) : (
+                        <>
+                            <Play size={11} style={{ verticalAlign: '-1px' }} /> 播放
+                        </>
+                    )}
                 </button>
                 {SPEEDS.map((sp, i) => (
                     <button

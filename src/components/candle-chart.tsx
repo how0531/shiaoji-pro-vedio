@@ -12,7 +12,7 @@ import {
     type ISeriesApi,
     type UTCTimestamp,
 } from 'lightweight-charts';
-import { X } from 'lucide-react';
+import { Bell, Crosshair, OctagonX, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import { bollinger, ema, sma, vwap } from '../lib/indicators';
@@ -857,11 +857,13 @@ export function CandleChart({
                         {triggers.map((t) => (
                             <div key={t.id} className={styles.triggerRow}>
                                 <span>
-                                    {t.kind === 'stop'
-                                        ? '⛔'
-                                        : t.kind === 'take'
-                                          ? '🎯'
-                                          : '🔔'}{' '}
+                                    {t.kind === 'stop' ? (
+                                        <OctagonX size={10} />
+                                    ) : t.kind === 'take' ? (
+                                        <Crosshair size={10} />
+                                    ) : (
+                                        <Bell size={10} />
+                                    )}{' '}
                                     {t.condition === 'below' ? '≤' : '≥'}
                                     {fmtPrice(t.price)}
                                     {t.kind !== 'alert' &&
