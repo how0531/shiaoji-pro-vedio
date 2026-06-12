@@ -54,9 +54,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # the AI Agent is a closed-source desktop module — pull it into
-      # agent/ via a read-only deploy key so the desktop build is complete
-      - name: Checkout desktop agent module (private)
+      # the desktop layer (Tauri shell + AI Agent) is closed-source — pull
+      # it in via a read-only deploy key so the desktop build is complete
+      - name: Checkout desktop modules (private)
         shell: bash
         env:
           AGENT_SSH_KEY: ${{ secrets.AGENT_SSH_KEY }}
@@ -66,8 +66,10 @@ jobs:
           chmod 600 ~/.ssh/agent_key
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
           GIT_SSH_COMMAND="ssh -i ~/.ssh/agent_key -o IdentitiesOnly=yes" \
-            git clone --depth 1 git@github.com:Yvictor/shioaji-pro-desktop.git agent
-          rm ~/.ssh/agent_key
+            git clone --depth 1 git@github.com:Yvictor/shioaji-pro-desktop.git desktop_modules
+          mv desktop_modules/agent agent
+          mv desktop_modules/src-tauri src-tauri
+          rm -rf desktop_modules ~/.ssh/agent_key
 
       - uses: pnpm/action-setup@v4
         with:
