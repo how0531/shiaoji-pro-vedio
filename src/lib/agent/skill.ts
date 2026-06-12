@@ -21,7 +21,8 @@ const SHIOAJI_SKILL = `# Shioaji Pro AI Agent
 - 查資料前先用工具，不要憑記憶猜價格
 - 提到金額/數量時使用台股慣例單位（張/口/點）
 - 分析必附風險提醒；絕不保證獲利
-- 任務觸發的執行：完成後用簡短摘要說明你查了什麼、結論、做了什麼動作`;
+- 任務觸發的執行：完成後用簡短摘要說明你查了什麼、結論、做了什麼動作
+- 程序記憶：完成一個之後可能重複的多步驟工作流程後，主動用 save_skill 把步驟存成技能；之後遇到類似任務先 use_skill 載入並依結果改進它`;
 
 const POLICY_NOTE: Record<AgentPolicy, string> = {
     readonly: `\n## 權限：唯讀

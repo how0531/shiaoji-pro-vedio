@@ -18,7 +18,7 @@ import { getQuote } from '../stream';
 import { notify, placeQuickOrder } from '../trade';
 import { ACTIVE_ORDER_STATUSES } from '../types/order';
 import { dateStrOffset } from '../utils/kbars';
-import { findSkill } from './skills';
+import { findSkill, saveSkill } from './skills';
 import type {
     AgentPolicy,
     OrderProposal,
@@ -86,6 +86,23 @@ export const TOOL_DEFS: ToolDef[] = [
             type: 'object',
             properties: { name: { type: 'string', description: '技能名稱' } },
             required: ['name'],
+        },
+    },
+    {
+        name: 'save_skill',
+        description:
+            '把剛完成的多步驟工作流程存成技能（procedural memory）。當你完成一個之後可能重複的非平凡任務時主動使用；同名技能會被更新改進',
+        schema: {
+            type: 'object',
+            properties: {
+                name: { type: 'string', description: '簡短技能名稱' },
+                description: { type: 'string', description: '一句話描述' },
+                instructions: {
+                    type: 'string',
+                    description: '可重複執行的步驟（含使用哪些工具）',
+                },
+            },
+            required: ['name', 'description', 'instructions'],
         },
     },
     {
@@ -301,6 +318,23 @@ export async function executeTool(
                     instructions: skill.instructions,
                 },
             };
+        }
+        case 'save_skill': {
+            const name = String(input.name ?? '').trim();
+            if (!name) return { result: { error: '技能名稱不可為空' } };
+            const existing = findSkill(name);
+            saveSkill({
+                id: existing && !existing.builtin ? existing.id : undefined,
+                name,
+                description: String(input.description ?? '').trim(),
+                instructions: String(input.instructions ?? ''),
+            });
+            notify({
+                kind: 'info',
+                title: `🤖 Agent ${existing ? '更新' : '學會'}了技能「${name}」`,
+                body: String(input.description ?? '').slice(0, 100),
+            });
+            return { result: { saved: true, name } };
         }
         case 'notify_user': {
             notify({
