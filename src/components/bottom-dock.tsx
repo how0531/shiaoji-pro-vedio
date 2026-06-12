@@ -506,9 +506,11 @@ function cssColor(el: HTMLElement, varRef: string): string {
 function AssetDonut({
     segs,
     total,
+    mask = false,
 }: {
     segs: { label: string; value: number; color: string }[];
     total: number;
+    mask?: boolean;
 }) {
     const ref = useRef<HTMLCanvasElement>(null);
     useEffect(() => {
@@ -556,8 +558,8 @@ function AssetDonut({
         ctx.fillText('資產市值', cx, cy - 8);
         ctx.fillStyle = cssColor(cv, vars.color.foreground);
         ctx.font = "700 16px 'JetBrains Mono', monospace";
-        ctx.fillText(fmtCompact(total), cx, cy + 10);
-    }, [segs, total]);
+        ctx.fillText(mask ? '••••' : fmtCompact(total), cx, cy + 10);
+    }, [segs, total, mask]);
     return (
         <canvas
             ref={ref}
@@ -709,7 +711,11 @@ function AccountView({
                 <div className={styles.distBlock}>
                     <span className={styles.distTitle}>資產分布</span>
                     <div className={styles.distWrap}>
-                        <AssetDonut segs={distSegs} total={distTotal} />
+                        <AssetDonut
+                            segs={distSegs}
+                            total={distTotal}
+                            mask={privMoney}
+                        />
                         <div className={styles.distDetail}>
                             {distSegs.map((s) => (
                                 <div key={s.label} className={styles.distRow}>
@@ -721,7 +727,10 @@ function AccountView({
                                         {s.label}
                                     </span>
                                     <span className={styles.distValue}>
-                                        {fmtMoney(Math.round(s.value))}
+                                        {maskMoney(
+                                            fmtMoney(Math.round(s.value)),
+                                            privMoney,
+                                        )}
                                     </span>
                                     <span className={styles.distPct}>
                                         {((s.value / distTotal) * 100).toFixed(
@@ -761,7 +770,10 @@ function AccountView({
                                             <span
                                                 className={styles.holdingValue}
                                             >
-                                                {fmtCompact(h.value)}
+                                                {maskMoney(
+                                                    fmtCompact(h.value),
+                                                    privMoney,
+                                                )}
                                             </span>
                                             <span className={styles.distPct}>
                                                 {(

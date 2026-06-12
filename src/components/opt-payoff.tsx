@@ -44,6 +44,7 @@ export function OptPayoff({ positions = [] }: { positions?: Position[] }) {
     const [loadingPos, setLoadingPos] = useState(true);
     // simulated-leg form
     const [simRight, setSimRight] = useState<'C' | 'P' | 'F'>('C');
+    const [simSide, setSimSide] = useState<'Buy' | 'Sell'>('Buy');
     const [simStrike, setSimStrike] = useState('');
     const [simQty, setSimQty] = useState('1');
     const [simPrice, setSimPrice] = useState('');
@@ -109,7 +110,9 @@ export function OptPayoff({ positions = [] }: { positions?: Position[] }) {
 
     const addSim = () => {
         const strike = Number(simStrike);
-        const qty = Number(simQty);
+        // explicit 買/賣 toggle drives the sign (issue #2: sell side wasn't
+        // discoverable when it relied on typing a negative qty)
+        const qty = Math.abs(Number(simQty)) * (simSide === 'Sell' ? -1 : 1);
         const price = Number(simPrice);
         if (
             (simRight !== 'F' && (!Number.isFinite(strike) || strike <= 0)) ||
@@ -307,6 +310,17 @@ export function OptPayoff({ positions = [] }: { positions?: Position[] }) {
                 ))}
             </div>
             <div className={styles.simRow}>
+                <div className={ticket.segGroup} style={{ flex: '0 0 auto' }}>
+                    {(['Buy', 'Sell'] as const).map((s) => (
+                        <button
+                            key={s}
+                            className={ticket.seg[simSide === s ? 'on' : 'off']}
+                            onClick={() => setSimSide(s)}
+                        >
+                            {s === 'Buy' ? '買' : '賣'}
+                        </button>
+                    ))}
+                </div>
                 <select
                     className={styles.monthSelect}
                     value={simRight}
@@ -329,8 +343,7 @@ export function OptPayoff({ positions = [] }: { positions?: Position[] }) {
                 )}
                 <input
                     className={ticket.numInput}
-                    placeholder='±口數'
-                    title='正=買進 負=賣出'
+                    placeholder='口數'
                     value={simQty}
                     inputMode='numeric'
                     onChange={(e) => setSimQty(e.target.value)}
