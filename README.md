@@ -149,4 +149,13 @@ curl -X POST http://localhost:8080/api/v1/apps/shioaji-pro-app "${ARGS[@]}"
 
 ## License
 
-MIT
+[GNU AGPL-3.0](LICENSE) — 介面 100% 開源，但這是強 copyleft 授權：
+
+- **可以**自由使用、修改、學習、fork
+- **商用條件**：任何基於本專案的修改或衍生作品（包括架成網路服務提供他人
+  使用）都**必須以 AGPL-3.0 完整開源**
+- 不願開源的商業使用，請聯繫永豐金證券洽談**商業授權**（dual licensing）
+
+External contributions: by submitting a PR you agree to license your
+contribution under AGPL-3.0 and grant the maintainers the right to
+include it in dual-licensed distributions.
