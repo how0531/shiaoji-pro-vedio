@@ -255,7 +255,7 @@ export const LAYOUT_PRESETS: { name: string; desc: string; workspace: Workspace 
     },
     {
         name: '選擇權',
-        desc: 'T字報價+台指期圖+下單',
+        desc: 'T字報價+台指期圖+損益圖+下單',
         workspace: {
             blocks: [
                 { id: 'opt-ow', type: 'optchain', pin: null },
@@ -263,13 +263,77 @@ export const LAYOUT_PRESETS: { name: string; desc: string; workspace: Workspace 
                 { id: 'ticket-ow', type: 'ticket', pin: null },
                 { id: 'depth-ow', type: 'depth', pin: null },
                 { id: 'dock-ow', type: 'dock', pin: null },
+                { id: 'optpnl-ow', type: 'optpnl', pin: null },
             ],
             layout: [
                 { i: 'opt-ow', x: 0, y: 0, w: 10, h: 16, minW: 8, minH: 8 },
                 { i: 'chart-ow', x: 10, y: 0, w: 9, h: 16, minW: 6, minH: 7 },
                 { i: 'ticket-ow', x: 19, y: 0, w: 5, h: 10, minW: 4, minH: 9 },
                 { i: 'depth-ow', x: 19, y: 10, w: 5, h: 6, minW: 4, minH: 6 },
-                { i: 'dock-ow', x: 0, y: 16, w: 24, h: 8, minW: 6, minH: 5 },
+                { i: 'dock-ow', x: 0, y: 16, w: 16, h: 9, minW: 6, minH: 5 },
+                { i: 'optpnl-ow', x: 16, y: 16, w: 8, h: 9, minW: 6, minH: 9 },
+            ],
+        },
+    },
+    {
+        name: '鋪單交易',
+        desc: '鋪單+閃電+五檔明細，掛單火力全開',
+        workspace: {
+            blocks: [
+                { id: 'chart-gr', type: 'chart', pin: null },
+                { id: 'flash-gr', type: 'flash', pin: null },
+                { id: 'grid-gr', type: 'grid', pin: null },
+                { id: 'depth-gr', type: 'depth', pin: null },
+                { id: 'dock-gr', type: 'dock', pin: null },
+                { id: 'tape-gr', type: 'tape', pin: null },
+            ],
+            layout: [
+                { i: 'chart-gr', x: 0, y: 0, w: 12, h: 14, minW: 6, minH: 7 },
+                { i: 'flash-gr', x: 12, y: 0, w: 6, h: 14, minW: 4, minH: 8 },
+                { i: 'grid-gr', x: 18, y: 0, w: 6, h: 14, minW: 4, minH: 10 },
+                { i: 'depth-gr', x: 0, y: 14, w: 6, h: 10, minW: 4, minH: 7 },
+                { i: 'dock-gr', x: 6, y: 14, w: 12, h: 10, minW: 6, minH: 5 },
+                { i: 'tape-gr', x: 18, y: 14, w: 6, h: 10, minW: 3, minH: 4 },
+            ],
+        },
+    },
+    {
+        name: '熱力選股',
+        desc: '熱力圖+排行掃標的，點格即連動全終端',
+        workspace: {
+            blocks: [
+                { id: 'heatmap-hs', type: 'heatmap', pin: null },
+                { id: 'movers-hs', type: 'movers', pin: null },
+                { id: 'watch-hs', type: 'watchlist', pin: null },
+                { id: 'chart-hs', type: 'chart', pin: null },
+                { id: 'dock-hs', type: 'dock', pin: null },
+            ],
+            layout: [
+                { i: 'heatmap-hs', x: 0, y: 0, w: 14, h: 12, minW: 5, minH: 6 },
+                { i: 'movers-hs', x: 14, y: 0, w: 10, h: 12, minW: 3, minH: 5 },
+                { i: 'watch-hs', x: 0, y: 12, w: 6, h: 12, minW: 3, minH: 6 },
+                { i: 'chart-hs', x: 6, y: 12, w: 12, h: 12, minW: 6, minH: 7 },
+                { i: 'dock-hs', x: 18, y: 12, w: 6, h: 12, minW: 6, minH: 5 },
+            ],
+        },
+    },
+    {
+        name: 'AI 副駕',
+        desc: 'AI Agent 常駐側欄，看盤帳務通知一條龍',
+        workspace: {
+            blocks: [
+                { id: 'assistant-ai', type: 'assistant', pin: null },
+                { id: 'chart-ai', type: 'chart', pin: null },
+                { id: 'dock-ai', type: 'dock', pin: null },
+                { id: 'watch-ai', type: 'watchlist', pin: null },
+                { id: 'notices-ai', type: 'notices', pin: null },
+            ],
+            layout: [
+                { i: 'assistant-ai', x: 0, y: 0, w: 7, h: 24, minW: 5, minH: 9 },
+                { i: 'chart-ai', x: 7, y: 0, w: 11, h: 14, minW: 6, minH: 7 },
+                { i: 'dock-ai', x: 7, y: 14, w: 11, h: 10, minW: 6, minH: 5 },
+                { i: 'watch-ai', x: 18, y: 0, w: 6, h: 14, minW: 3, minH: 6 },
+                { i: 'notices-ai', x: 18, y: 14, w: 6, h: 10, minW: 4, minH: 6 },
             ],
         },
     },
