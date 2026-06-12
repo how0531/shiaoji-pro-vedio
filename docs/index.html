@@ -329,15 +329,15 @@
       或直接用你的 Codex 訂閱。新世代不在路上 — 它已經住進你的終端了。
     </p>
     <div class="badges">
-      <span class="badge" style="color: var(--accent); border-color: var(--accent);">🤖 AI Agent 內建</span>
+      <span class="badge" style="color: var(--accent); border-color: var(--accent);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>AI Agent 內建</span>
       <span class="badge" style="color: var(--accent); border-color: var(--accent);">100% 開源</span>
       <span class="badge" id="ver-badge">v—</span>
       <span class="badge">macOS ・ Windows ・ Linux</span>
       <span class="badge sim">預設模擬環境</span>
     </div>
     <div class="cta-row">
-      <a class="btn primary" id="cta-dl" href="https://github.com/Sinotrade/shioaji-pro-app/releases/latest">⬇ 下載體驗</a>
-      <a class="btn" href="https://github.com/Sinotrade/shioaji-pro-app">★ 查看原始碼</a>
+      <a class="btn primary" id="cta-dl" href="https://github.com/Sinotrade/shioaji-pro-app/releases/latest"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg><span id="cta-dl-label">下載體驗</span></a>
+      <a class="btn" href="https://github.com/Sinotrade/shioaji-pro-app"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>查看原始碼</a>
     </div>
     <p class="cta-note" id="cta-note">下載即用・macOS 已簽章公證・內建自動更新</p>
     <p class="all-dl"><a href="#downloads">所有平台下載 ↓</a></p>
@@ -607,7 +607,7 @@
     </div>
     <div class="dl-grid rv">
       <div class="dl-card">
-        <h3> macOS</h3>
+        <h3>macOS</h3>
         <div class="arch">已簽章・已公證</div>
         <div class="dl-links" id="dl-mac">
           <a class="dl-link" href="https://github.com/Sinotrade/shioaji-pro-app/releases/latest">Apple Silicon <span class="ext">.dmg</span></a>
@@ -615,7 +615,7 @@
         </div>
       </div>
       <div class="dl-card">
-        <h3>⊞ Windows</h3>
+        <h3>Windows</h3>
         <div class="arch">x64</div>
         <div class="dl-links" id="dl-win">
           <a class="dl-link" href="https://github.com/Sinotrade/shioaji-pro-app/releases/latest">安裝程式 <span class="ext">.msi</span></a>
@@ -623,7 +623,7 @@
         </div>
       </div>
       <div class="dl-card">
-        <h3>🐧 Linux</h3>
+        <h3>Linux</h3>
         <div class="arch">x86_64</div>
         <div class="dl-links" id="dl-linux">
           <a class="dl-link" href="https://github.com/Sinotrade/shioaji-pro-app/releases/latest">AppImage <span class="ext">.AppImage</span></a>
@@ -638,7 +638,7 @@
   </div>
 </section>
 
-<a id="float-dl" href="https://github.com/Sinotrade/shioaji-pro-app/releases/latest">⬇ 下載試玩</a>
+<a id="float-dl" href="https://github.com/Sinotrade/shioaji-pro-app/releases/latest"><svg class="i" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>下載試玩</a>
 
 <footer>
   <div class="wrap">
@@ -740,7 +740,7 @@
         url = asset(/\.AppImage$/); label = '下載 Linux 版 (.AppImage)';
       }
       if (url) {
-        cta.href = url; cta.textContent = '⬇ ' + label + ' ' + ver;
+        cta.href = url; document.getElementById('cta-dl-label').textContent = label + ' ' + ver;
         floatDl.href = url;
       }
     })
