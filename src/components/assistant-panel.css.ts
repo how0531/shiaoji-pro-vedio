@@ -88,6 +88,80 @@ export const aiMsg = style([
     },
 ]);
 
+// rendered-markdown body for assistant text (msgBase is pre-wrap for plain
+// user text; markdown supplies its own block spacing)
+export const mdBody = style({
+    whiteSpace: 'normal',
+});
+
+globalStyle(`${mdBody} > :first-child`, { marginTop: 0 });
+globalStyle(`${mdBody} > :last-child`, { marginBottom: 0 });
+globalStyle(`${mdBody} p`, { margin: '0.35em 0' });
+globalStyle(`${mdBody} h1, ${mdBody} h2, ${mdBody} h3, ${mdBody} h4`, {
+    fontSize: '0.78rem',
+    fontWeight: 700,
+    margin: '0.7em 0 0.3em',
+    color: vars.color.foreground,
+});
+globalStyle(`${mdBody} h1`, { fontSize: '0.84rem' });
+globalStyle(`${mdBody} h2`, {
+    borderBottom: `1px solid ${vars.color.border}`,
+    paddingBottom: '0.2em',
+});
+globalStyle(`${mdBody} ul, ${mdBody} ol`, {
+    margin: '0.3em 0',
+    paddingInlineStart: '1.3em',
+});
+globalStyle(`${mdBody} li`, { margin: '0.15em 0' });
+globalStyle(`${mdBody} code`, {
+    fontFamily: vars.font.mono,
+    fontSize: '0.95em',
+    background: vars.color.panel,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: '3px',
+    padding: '0 4px',
+});
+globalStyle(`${mdBody} pre`, {
+    margin: '0.4em 0',
+    padding: '6px 8px',
+    background: vars.color.panel,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    overflowX: 'auto',
+});
+globalStyle(`${mdBody} pre code`, {
+    border: 'none',
+    background: 'transparent',
+    padding: 0,
+});
+globalStyle(`${mdBody} table`, {
+    borderCollapse: 'collapse',
+    margin: '0.4em 0',
+    fontVariantNumeric: 'tabular-nums',
+});
+globalStyle(`${mdBody} th, ${mdBody} td`, {
+    border: `1px solid ${vars.color.border}`,
+    padding: '2px 8px',
+    textAlign: 'left',
+});
+globalStyle(`${mdBody} th`, {
+    background: vars.color.panel,
+    fontWeight: 650,
+});
+globalStyle(`${mdBody} blockquote`, {
+    margin: '0.4em 0',
+    paddingInlineStart: '0.8em',
+    borderInlineStart: `2px solid ${vars.color.accent}`,
+    color: vars.color.mutedForeground,
+});
+globalStyle(`${mdBody} hr`, {
+    border: 'none',
+    borderTop: `1px solid ${vars.color.border}`,
+    margin: '0.6em 0',
+});
+globalStyle(`${mdBody} a`, { color: vars.color.accent });
+globalStyle(`${mdBody} strong`, { fontWeight: 700 });
+
 export const proposalCard = style({
     display: 'flex',
     flexDirection: 'column',

@@ -4,6 +4,8 @@
 
 import { Check, Play, Trash2, Wrench, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     getAgentKey,
     getAgentModel,
@@ -162,7 +164,16 @@ function ChatTab() {
                     >
                         {t.blocks.map((b, j) => {
                             if (b.type === 'text') {
-                                return <span key={j}>{b.text}</span>;
+                                if (t.role === 'user') {
+                                    return <span key={j}>{b.text}</span>;
+                                }
+                                return (
+                                    <div key={j} className={styles.mdBody}>
+                                        <Markdown remarkPlugins={[remarkGfm]}>
+                                            {b.text}
+                                        </Markdown>
+                                    </div>
+                                );
                             }
                             if (b.type === 'tool') {
                                 return (
