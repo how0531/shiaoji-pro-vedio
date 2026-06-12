@@ -21,10 +21,12 @@ import {
     getCurrentSessionId,
     getSession,
     historyForPreload,
+    isHydrated,
     listSessions,
     newSessionId,
     saveSession,
     setCurrentSessionId,
+    subscribeSessions,
     titleFrom,
     type ChatTurn,
 } from '../lib/agent/sessions';
@@ -120,11 +122,30 @@ function ChatTab() {
     >(() => expiredProposals(getSession(getCurrentSessionId())?.turns ?? []));
     const sessionRef = useRef<AgentSession | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const touched = useRef(false); // user started a new conversation
     const skills = useSkills();
 
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
     }, [turns, busy]);
+
+    // desktop loads sessions from disk asynchronously — once hydrated, restore
+    // the last conversation, but never clobber one the user already started
+    useEffect(() => {
+        const restore = () => {
+            if (touched.current || turns.length > 0) return;
+            const cur = getCurrentSessionId();
+            const s = cur ? getSession(cur) : null;
+            if (s && s.turns.length) {
+                setSessionId(cur);
+                setTurns(s.turns);
+                setProposalDone(expiredProposals(s.turns));
+            }
+        };
+        if (!isHydrated()) restore();
+        return subscribeSessions(restore);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // autosave the conversation on every turn
     useEffect(() => {
@@ -154,6 +175,7 @@ function ChatTab() {
 
     const newChat = () => {
         if (busy) return;
+        touched.current = true;
         const id = newSessionId();
         setSessionId(id);
         setTurns([]);
@@ -173,6 +195,7 @@ function ChatTab() {
     const send = async () => {
         let text = input.trim();
         if (!text || busy) return;
+        touched.current = true; // disk hydrate must not clobber a live chat
         // /技能名 → run that skill's workflow
         if (text.startsWith('/')) {
             const skill = findSkill(text.slice(1).trim());
