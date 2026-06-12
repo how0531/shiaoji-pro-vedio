@@ -10,7 +10,7 @@ import {
     fetchInfo,
     subscribeTradeEvents,
 } from './shioaji';
-import { isTauri } from './runtime';
+import { isTauri, setApiPort } from './runtime';
 import { loadDesktopSettings, serverStart, serverStatus } from './tauri';
 import { notify } from './trade';
 
@@ -28,7 +28,14 @@ async function run() {
             const settings = await loadDesktopSettings();
             if (settings.autoStart && settings.apiKey && settings.secretKey) {
                 const status = await serverStatus();
-                if (!status?.running) {
+                if (status?.running) {
+                    // daemon survived from a previous run (possibly on a
+                    // non-default port) — make sure the API base follows it
+                    if (status.port && setApiPort(status.port)) {
+                        window.location.reload();
+                        return;
+                    }
+                } else {
                     notify({
                         kind: 'info',
                         title: '🚀 自動啟動 shioaji server…',
@@ -41,6 +48,15 @@ async function run() {
                             title: '伺服器自動啟動失敗',
                             body: res.output.slice(0, 120),
                         });
+                    } else if (res.portChanged) {
+                        // API base moved to a new port — reboot the UI on it
+                        notify({
+                            kind: 'info',
+                            title: `伺服器使用 port ${res.port}`,
+                            body: '畫面將自動重新載入',
+                        });
+                        setTimeout(() => window.location.reload(), 1500);
+                        return;
                     }
                 }
             }

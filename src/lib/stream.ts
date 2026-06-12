@@ -16,8 +16,6 @@ export interface QuoteState {
     flashSeq: number; // bumps only on real trades (not simtrade/bidask)
 }
 
-const base = getApiBase();
-
 type Listener = () => void;
 
 const quotes = new Map<string, QuoteState>();
@@ -126,7 +124,7 @@ export function registerSubscription(body: {
 async function resubscribeAll() {
     for (const body of subscriptionRegistry.values()) {
         try {
-            await fetch(`${base}/api/v1/stream/subscribe`, {
+            await fetch(`${getApiBase()}/api/v1/stream/subscribe`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
@@ -145,7 +143,7 @@ let everDown = false;
 function connect() {
     if (es) es.close();
     setStatus('connecting');
-    es = new EventSource(`${base}/api/v1/stream/data`);
+    es = new EventSource(`${getApiBase()}/api/v1/stream/data`);
 
     es.onopen = () => {
         retryDelay = 1000;
@@ -189,7 +187,7 @@ let lastMaintenance: string | null = null;
 
 async function watchMaintenance() {
     try {
-        const res = await fetch(`${base}/api/v1/health`);
+        const res = await fetch(`${getApiBase()}/api/v1/health`);
         if (!res.ok) return;
         const h = (await res.json()) as { last_maintenance?: string };
         const lm = h.last_maintenance ?? null;

@@ -1,7 +1,7 @@
 // src/lib/tauri.ts — desktop bridge: sidecar server management, popout
 // windows, auto-updates. Every entry point is a no-op in the browser.
 
-import { isTauri } from './runtime';
+import { getApiPort, isTauri, setApiPort } from './runtime';
 import { notify } from './trade';
 
 export { isTauri } from './runtime';
@@ -54,18 +54,103 @@ export async function serverStatus(): Promise<ServerStatus | null> {
     return null;
 }
 
+// is a shioaji HTTP server already answering on this port?
+async function probeShioaji(port: number): Promise<boolean> {
+    try {
+        const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
+        const res = await tauriFetch(
+            `http://127.0.0.1:${port}/api/v1/info`,
+            { signal: AbortSignal.timeout(1500) },
+        );
+        if (!res.ok) return false;
+        const info = (await res.json()) as {
+            version?: string;
+            simulation?: boolean;
+        };
+        return (
+            typeof info.version === 'string' &&
+            typeof info.simulation === 'boolean'
+        );
+    } catch {
+        return false;
+    }
+}
+
+export interface StartResult extends SidecarResult {
+    port: number;
+    attached: boolean; // an existing shioaji server was reused
+    portChanged: boolean; // the app's API base moved — caller should reload
+}
+
 export async function serverStart(opts: {
     apiKey: string;
     secretKey: string;
     production: boolean;
-}): Promise<SidecarResult> {
+    caPath?: string;
+    caPasswd?: string;
+}): Promise<StartResult> {
+    // our own daemon already running (possibly on a non-default port)?
+    // sync to it — `server start` would be a no-op anyway
+    const st = await serverStatus();
+    if (st?.running && st.port) {
+        return {
+            ok: true,
+            output: `伺服器已在運行（port ${st.port}）`,
+            port: st.port,
+            attached: true,
+            portChanged: setApiPort(st.port),
+        };
+    }
+
+    // a shioaji server already on 8080 (e.g. the user's own CLI daemon)?
+    // attach to it instead of fighting over the port
+    if (await probeShioaji(8080)) {
+        return {
+            ok: true,
+            output: '偵測到既有 shioaji server（:8080），直接連接',
+            port: 8080,
+            attached: true,
+            portChanged: setApiPort(8080),
+        };
+    }
+
+    // 8080 occupied by something else → bind the first free port instead
+    let port = 8080;
+    try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const free = await invoke<number>('find_free_port', {
+            preferred: 8080,
+        });
+        if (free > 0) port = free;
+    } catch {
+        // command unavailable — try 8080 and let the server error surface
+    }
+
     const env: Record<string, string> = {
         SJ_API_KEY: opts.apiKey,
         SJ_SEC_KEY: opts.secretKey,
+        SJ_HTTP_ADDR: `127.0.0.1:${port}`,
     };
+    // CA certificate — required for production orders, ignored in simulation
+    if (opts.caPath) {
+        env.SJ_CA_PATH = opts.caPath;
+        if (opts.caPasswd) env.SJ_CA_PASSWD = opts.caPasswd;
+    }
     const args = ['server', 'start', '--no-open'];
     if (opts.production) args.push('--production');
-    return sidecar(args, env);
+    const res = await sidecar(args, env);
+    const portChanged = res.ok ? setApiPort(port) : false;
+    const note =
+        res.ok && port !== 8080
+            ? `\n⚠ 8080 被占用，伺服器改用 port ${port}`
+            : '';
+    return {
+        ...res,
+        output: `${res.output}${note}`,
+        port,
+        attached: false,
+        portChanged,
+    };
 }
 
 export async function serverStop(): Promise<SidecarResult> {
@@ -79,12 +164,21 @@ export interface DesktopSettings {
     secretKey: string;
     production: boolean;
     autoStart: boolean; // start the shioaji server when the app launches
+    caPath: string; // Sinopac.pfx — required for production orders
+    caPasswd: string;
 }
 
+const EMPTY_SETTINGS: DesktopSettings = {
+    apiKey: '',
+    secretKey: '',
+    production: false,
+    autoStart: true,
+    caPath: '',
+    caPasswd: '',
+};
+
 export async function loadDesktopSettings(): Promise<DesktopSettings> {
-    if (!isTauri) {
-        return { apiKey: '', secretKey: '', production: false, autoStart: true };
-    }
+    if (!isTauri) return { ...EMPTY_SETTINGS };
     const { LazyStore } = await import('@tauri-apps/plugin-store');
     const store = new LazyStore('settings.json');
     return {
@@ -92,6 +186,8 @@ export async function loadDesktopSettings(): Promise<DesktopSettings> {
         secretKey: (await store.get<string>('secretKey')) ?? '',
         production: (await store.get<boolean>('production')) ?? false,
         autoStart: (await store.get<boolean>('autoStart')) ?? true,
+        caPath: (await store.get<string>('caPath')) ?? '',
+        caPasswd: (await store.get<string>('caPasswd')) ?? '',
     };
 }
 
@@ -103,7 +199,22 @@ export async function saveDesktopSettings(s: DesktopSettings) {
     await store.set('secretKey', s.secretKey);
     await store.set('production', s.production);
     await store.set('autoStart', s.autoStart);
+    await store.set('caPath', s.caPath);
+    await store.set('caPasswd', s.caPasswd);
     await store.save();
+}
+
+// native file picker for the Sinopac.pfx certificate
+export async function pickCaFile(): Promise<string | null> {
+    if (!isTauri) return null;
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const file = await open({
+        multiple: false,
+        directory: false,
+        title: '選擇 Sinopac.pfx 憑證',
+        filters: [{ name: '憑證', extensions: ['pfx', 'p12'] }],
+    });
+    return typeof file === 'string' ? file : null;
 }
 
 // ---- popout windows ----

@@ -12,6 +12,24 @@ fn show_main(app: &tauri::AppHandle) {
     }
 }
 
+// Returns `preferred` if it is bindable on 127.0.0.1, otherwise the first
+// free port after it (0 if none found within 50). Used to dodge port-8080
+// conflicts before spawning the shioaji sidecar.
+#[tauri::command]
+fn find_free_port(preferred: u16) -> u16 {
+    use std::net::TcpListener;
+    let bindable = |p: u16| TcpListener::bind(("127.0.0.1", p)).is_ok();
+    if bindable(preferred) {
+        return preferred;
+    }
+    for p in (preferred + 1)..(preferred.saturating_add(50)) {
+        if bindable(p) {
+            return p;
+        }
+    }
+    0
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -24,6 +42,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
@@ -36,6 +55,7 @@ pub fn run() {
     }
 
     builder
+        .invoke_handler(tauri::generate_handler![find_free_port])
         .setup(|app| {
             // ---- tray / menu-bar icon ----
             let show =

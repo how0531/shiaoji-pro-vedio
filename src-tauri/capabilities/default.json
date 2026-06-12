@@ -20,11 +20,12 @@
     "updater:allow-check",
     "updater:allow-download-and-install",
     "shell:allow-open",
+    "dialog:default",
     {
       "identifier": "http:default",
       "allow": [
-        { "url": "http://127.0.0.1:8080/*" },
-        { "url": "http://localhost:8080/*" }
+        { "url": "http://127.0.0.1:*/*" },
+        { "url": "http://localhost:*/*" }
       ]
     },
     {

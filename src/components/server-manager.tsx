@@ -7,6 +7,7 @@ import { fetchHealth } from '../lib/shioaji';
 import {
     isTauri,
     loadDesktopSettings,
+    pickCaFile,
     saveDesktopSettings,
     serverStart,
     serverStatus,
@@ -31,6 +32,8 @@ export function ServerManager({
         secretKey: '',
         production: false,
         autoStart: true,
+        caPath: '',
+        caPasswd: '',
     });
     const [busy, setBusy] = useState(false);
     const [lastOutput, setLastOutput] = useState('');
@@ -63,17 +66,33 @@ export function ServerManager({
             });
             return;
         }
+        if (settings.production && !settings.caPath) {
+            notify({
+                kind: 'err',
+                title: '缺少憑證',
+                body: '正式環境下單需要 Sinopac.pfx 憑證，請先選擇憑證檔',
+            });
+            return;
+        }
         setBusy(true);
         try {
             const res = await serverStart(settings);
             setLastOutput(res.output.slice(0, 400));
             notify({
                 kind: res.ok ? 'ok' : 'err',
-                title: res.ok ? '🟢 伺服器啟動指令已送出' : '伺服器啟動失敗',
+                title: res.ok
+                    ? res.attached
+                        ? '🔗 已連接既有伺服器'
+                        : '🟢 伺服器啟動指令已送出'
+                    : '伺服器啟動失敗',
                 body: res.ok
-                    ? `模式：${settings.production ? '⚠ 正式環境' : '模擬環境'}`
+                    ? `port ${res.port} · 模式：${settings.production ? '⚠ 正式環境' : '模擬環境'}`
                     : res.output.slice(0, 120),
             });
+            if (res.ok && res.portChanged) {
+                // API base moved — reload the UI onto the new port
+                setTimeout(() => window.location.reload(), 1800);
+            }
         } finally {
             setBusy(false);
             setTimeout(refresh, 1500);
@@ -226,6 +245,59 @@ export function ServerManager({
                                 style={{ color: 'var(--danger, #f23645)' }}
                             >
                                 正式環境下單動用真實資金，重啟後生效
+                            </span>
+                        )}
+
+                        <span className={styles.settingLabel}>
+                            憑證（正式環境下單必要，模擬不需要）
+                        </span>
+                        <div className={styles.saveRow}>
+                            <button
+                                className={styles.resetBtn}
+                                style={{ flex: 1, minWidth: 0 }}
+                                title={
+                                    settings.caPath ||
+                                    '從 API 管理頁下載的 Sinopac.pfx'
+                                }
+                                onClick={async () => {
+                                    const path = await pickCaFile();
+                                    if (path) persist({ caPath: path });
+                                }}
+                            >
+                                {settings.caPath
+                                    ? `✓ ${settings.caPath.split(/[/\\]/).pop()}`
+                                    : '選擇 Sinopac.pfx…'}
+                            </button>
+                            {settings.caPath && (
+                                <button
+                                    className={styles.profileDelete}
+                                    title='清除憑證設定'
+                                    onClick={() =>
+                                        persist({ caPath: '', caPasswd: '' })
+                                    }
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+                        {settings.caPath && (
+                            <input
+                                className={styles.saveInput}
+                                type='password'
+                                placeholder='憑證密碼（下載時設定）'
+                                value={settings.caPasswd}
+                                onChange={(e) =>
+                                    persist({ caPasswd: e.target.value })
+                                }
+                            />
+                        )}
+                        {settings.production && !settings.caPath && (
+                            <span
+                                className={styles.emptyHint}
+                                style={{ color: 'var(--danger, #f23645)' }}
+                            >
+                                尚未設定憑證 — 正式環境無法下單。請至
+                                sinotrade.com.tw API 管理頁下載 Sinopac.pfx
                             </span>
                         )}
 
