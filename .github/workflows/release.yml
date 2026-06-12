@@ -67,7 +67,7 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
           GIT_SSH_COMMAND="ssh -i ~/.ssh/agent_key -o IdentitiesOnly=yes" \
             git clone --depth 1 git@github.com:Yvictor/shioaji-pro-desktop.git desktop_modules
-          mv desktop_modules/agent agent
+          mv desktop_modules/modules modules
           mv desktop_modules/src-tauri src-tauri
           rm -rf desktop_modules ~/.ssh/agent_key
 

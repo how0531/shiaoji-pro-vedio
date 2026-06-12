@@ -24,7 +24,7 @@ import { ComboTicket } from './components/combo-ticket';
 import { DebugPanel } from './components/debug-panel';
 import { GridTicket } from './components/grid-ticket';
 import { NoticeCenter } from './components/notice-center';
-import { AgentPanel } from '@agent';
+import { FeatureGate } from './components/feature-gate';
 import { OptPayoff } from './components/opt-payoff';
 import { SectorHeatmap } from './components/sector-heatmap';
 import { PnlPanel } from './components/pnl-panel';
@@ -42,6 +42,7 @@ import { useHotkeys } from './hooks/use-hotkeys';
 import { usePoll } from './hooks/use-poll';
 import { useWatchlist } from './hooks/use-watchlist';
 import { trackActivity } from './lib/activity';
+import { agentModule } from './lib/features';
 import { ensureContract, useContract } from './lib/contracts-cache';
 import { reportDailyPnl } from './lib/risk';
 import { isTauri, openPopout } from './lib/tauri';
@@ -213,8 +214,14 @@ function BlockBody({
             return <SectorHeatmap onPick={onSelectCode} />;
         case 'optpnl':
             return <OptPayoff positions={dockProps.positions} />;
-        case 'assistant':
-            return <AgentPanel />;
+        case 'assistant': {
+            const Panel = agentModule?.Panel;
+            return (
+                <FeatureGate feature='agent'>
+                    {Panel ? <Panel /> : null}
+                </FeatureGate>
+            );
+        }
         case 'replay':
             return contract ? (
                 <ReplayPanel contract={contract} />

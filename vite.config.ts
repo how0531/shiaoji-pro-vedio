@@ -6,12 +6,13 @@ import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
 
-// the AI Agent module is closed-source (desktop builds check out the
-// private submodule into ./agent); open-source builds get the stub
-const agentDir = path.resolve(__dirname, './agent/index.ts');
-const agentTarget = fs.existsSync(agentDir)
-    ? agentDir
-    : path.resolve(__dirname, './src/agent-stub/index.tsx');
+// closed-source modules (AI Agent, future tiered features) live in the
+// private repo, checked out into ./modules on desktop builds; open-source
+// builds resolve '@modules' to the empty stub manifest
+const modulesDir = path.resolve(__dirname, './modules/index.ts');
+const modulesTarget = fs.existsSync(modulesDir)
+    ? modulesDir
+    : path.resolve(__dirname, './src/modules-stub/index.ts');
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
@@ -24,7 +25,7 @@ export default defineConfig(({ mode }) => {
         plugins: [vanillaExtractPlugin(), react()],
         resolve: {
             alias: {
-                '@agent': agentTarget,
+                '@modules': modulesTarget,
                 '@': path.resolve(__dirname, './src'),
             },
         },

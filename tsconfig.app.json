@@ -19,8 +19,8 @@
         "baseUrl": ".",
         "paths": {
             "@/*": ["src/*"],
-            "@agent": ["agent/index.ts", "src/agent-stub/index.tsx"]
+            "@modules": ["modules/index.ts", "src/modules-stub/index.ts"]
         }
     },
-    "include": ["src", "agent"]
+    "include": ["src", "modules"]
 }

@@ -12,6 +12,7 @@ import {
     onAnyTick,
     onOrderEvent,
 } from '../lib/stream';
+import { useTier } from '../lib/features';
 import { appVersion } from '../lib/tauri';
 import type { OrderEventData } from '../lib/types/order';
 import * as dockStyles from './bottom-dock.css';
@@ -63,12 +64,14 @@ export function DebugPanel() {
         60000,
     );
 
+    const tier = useTier();
     const hb = getLastHeartbeat();
     const hbAge = hb ? Math.round((Date.now() - hb) / 1000) : null;
     const rate = (tickTimes.current.length / 5).toFixed(1);
 
     const rows: { label: string; value: string; warn?: boolean }[] = [
         { label: 'App 版本', value: ver ? `v${ver}` : '—' },
+        { label: '方案', value: tier === 'vip' ? 'VIP' : 'Free' },
         {
             label: 'SSE 行情流',
             value: STATUS_LABEL[stream],
