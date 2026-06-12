@@ -24,6 +24,9 @@ export interface ToolResult {
 export interface LLMTurn {
     texts: string[];
     toolCalls: ToolCall[];
+    // model reasoning summaries (Codex reasoning items / Claude thinking
+    // blocks) — surfaced in the chat as collapsible 思考 rows
+    thinking?: string[];
 }
 
 export interface ToolDef {
@@ -44,7 +47,15 @@ export interface OrderProposal {
 export type AgentBlock =
     | { type: 'text'; text: string }
     | { type: 'proposal'; proposal: OrderProposal; id: string }
-    | { type: 'tool'; name: string; summary: string };
+    | {
+          type: 'tool';
+          name: string;
+          summary: string; // one-line result preview for the collapsed row
+          args?: string; // JSON of the call input — shown when expanded
+          result?: string; // full JSON result — shown when expanded
+          isError?: boolean;
+      }
+    | { type: 'thinking'; text: string };
 
 // ---- scheduled / triggered tasks ----
 

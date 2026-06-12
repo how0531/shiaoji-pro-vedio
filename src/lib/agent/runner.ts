@@ -49,53 +49,67 @@ export function createAgentSession(
             session.sendUser(text);
             for (let round = 0; round < MAX_ROUNDS; round++) {
                 const turn = await session.next();
-                const blocks: AgentBlock[] = turn.texts.map((t) => ({
-                    type: 'text' as const,
-                    text: t,
-                }));
-                if (turn.toolCalls.length === 0) {
-                    if (blocks.length) onBlocks(blocks);
-                    return;
-                }
+                // surface reasoning + text right away, then stream each tool
+                // call as its own block so the chat stacks them Claude-Code
+                // style (one row per call, expandable, in execution order)
+                const pre: AgentBlock[] = [
+                    ...(turn.thinking ?? [])
+                        .filter((t) => t.trim())
+                        .map((t) => ({ type: 'thinking' as const, text: t })),
+                    ...turn.texts.map((t) => ({
+                        type: 'text' as const,
+                        text: t,
+                    })),
+                ];
+                if (pre.length) onBlocks(pre);
+                if (turn.toolCalls.length === 0) return;
+
                 const results: ToolResult[] = [];
                 for (const call of turn.toolCalls) {
+                    const args = JSON.stringify(call.input);
                     try {
                         const { result, proposal } = await executeTool(
                             call.name,
                             call.input,
                             policy,
                         );
+                        const resultJson = JSON.stringify(result);
                         if (proposal) {
-                            blocks.push({
-                                type: 'proposal',
-                                proposal,
-                                id: call.id,
-                            });
+                            onBlocks([
+                                { type: 'proposal', proposal, id: call.id },
+                            ]);
                         } else if (call.name !== 'use_skill') {
-                            blocks.push({
+                            onBlocks([
+                                {
+                                    type: 'tool',
+                                    name: call.name,
+                                    summary: resultJson.slice(0, 80),
+                                    args,
+                                    result: resultJson,
+                                },
+                            ]);
+                        }
+                        results.push({ id: call.id, content: resultJson });
+                    } catch (e) {
+                        const msg =
+                            e instanceof Error ? e.message : String(e);
+                        onBlocks([
+                            {
                                 type: 'tool',
                                 name: call.name,
-                                summary: JSON.stringify(result).slice(0, 80),
-                            });
-                        }
+                                summary: msg.slice(0, 80),
+                                args,
+                                result: JSON.stringify({ error: msg }),
+                                isError: true,
+                            },
+                        ]);
                         results.push({
                             id: call.id,
-                            content: JSON.stringify(result),
-                        });
-                    } catch (e) {
-                        results.push({
-                            id: call.id,
-                            content: JSON.stringify({
-                                error:
-                                    e instanceof Error
-                                        ? e.message
-                                        : String(e),
-                            }),
+                            content: JSON.stringify({ error: msg }),
                             isError: true,
                         });
                     }
                 }
-                if (blocks.length) onBlocks(blocks);
                 session.pushToolResults(results);
             }
             onBlocks([

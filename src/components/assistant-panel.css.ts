@@ -184,6 +184,136 @@ export const msgForkBtn = style({
 
 globalStyle(`${userMsg}:hover ${msgForkBtn}`, { opacity: 1 });
 
+// ---- Claude-Code-style tool / thinking rows ----
+
+export const aiGroup = style({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    alignSelf: 'stretch',
+});
+
+export const toolRow = style({
+    alignSelf: 'stretch',
+    fontFamily: vars.font.mono,
+    fontSize: '0.66rem',
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    background: vars.color.inset,
+    overflow: 'hidden',
+});
+
+export const toolHead = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '3px 8px',
+    cursor: 'pointer',
+    listStyle: 'none',
+    color: vars.color.mutedForeground,
+    userSelect: 'none',
+    ':hover': { color: vars.color.foreground },
+});
+
+globalStyle(`${toolHead}::-webkit-details-marker`, { display: 'none' });
+
+export const toolChevron = style({
+    flexShrink: 0,
+    transition: 'transform 0.12s',
+});
+
+globalStyle(`${toolRow}[open] > ${toolHead} ${toolChevron}`, {
+    transform: 'rotate(90deg)',
+});
+
+export const toolDotOk = style({
+    width: '5px',
+    height: '5px',
+    borderRadius: '50%',
+    flexShrink: 0,
+    background: vars.color.down, // green = success in tw convention
+});
+
+export const toolDotErr = style([toolDotOk, { background: vars.color.danger }]);
+
+export const toolName = style({
+    color: vars.color.foreground,
+    fontWeight: 600,
+    flexShrink: 0,
+});
+
+export const toolBrief = style({
+    flex: 1,
+    minWidth: 0,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    opacity: 0.8,
+});
+
+export const toolDetail = style({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px',
+    padding: '6px 8px',
+    borderTop: `1px solid ${vars.color.border}`,
+});
+
+export const toolDetailLabel = style({
+    fontSize: '0.6rem',
+    fontWeight: 650,
+    color: vars.color.mutedForeground,
+    letterSpacing: '0.06em',
+});
+
+export const toolPre = style({
+    margin: 0,
+    padding: '5px 7px',
+    maxHeight: '200px',
+    overflow: 'auto',
+    fontSize: '0.62rem',
+    lineHeight: 1.55,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-all',
+    color: vars.color.foreground,
+    background: vars.color.panel,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+});
+
+export const thinkRow = style({
+    alignSelf: 'stretch',
+    fontSize: '0.66rem',
+    borderInlineStart: `2px solid ${vars.color.border}`,
+    paddingInlineStart: '6px',
+});
+
+export const thinkHead = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '2px 0',
+    cursor: 'pointer',
+    listStyle: 'none',
+    color: vars.color.mutedForeground,
+    fontStyle: 'italic',
+    userSelect: 'none',
+    ':hover': { color: vars.color.foreground },
+});
+
+globalStyle(`${thinkHead}::-webkit-details-marker`, { display: 'none' });
+globalStyle(`${thinkRow}[open] > ${thinkHead} ${toolChevron}`, {
+    transform: 'rotate(90deg)',
+});
+
+export const thinkBody = style({
+    padding: '2px 0 4px 15px',
+    color: vars.color.mutedForeground,
+    fontStyle: 'italic',
+    lineHeight: 1.6,
+    whiteSpace: 'pre-wrap',
+});
+
 // rendered-markdown body for assistant text (msgBase is pre-wrap for plain
 // user text; markdown supplies its own block spacing)
 export const mdBody = style({

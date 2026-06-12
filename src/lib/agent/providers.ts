@@ -100,6 +100,14 @@ export function anthropicSession(
                 texts: data.content
                     .filter((c) => c.type === 'text' && c.text)
                     .map((c) => c.text!),
+                thinking: data.content
+                    .filter(
+                        (c) =>
+                            c.type === 'thinking' &&
+                            typeof (c as { thinking?: string }).thinking ===
+                                'string',
+                    )
+                    .map((c) => (c as unknown as { thinking: string }).thinking),
                 toolCalls: data.content
                     .filter((c) => c.type === 'tool_use' && c.id && c.name)
                     .map((c) => ({
@@ -195,6 +203,8 @@ export function codexSession(
                         })),
                         store: false,
                         stream: true,
+                        // ask for reasoning summaries (思考過程 rows)
+                        reasoning: { summary: 'auto' },
                     }),
                 });
             let res = await doFetch(model);
@@ -262,6 +272,19 @@ export function codexSession(
                                 )
                                 .map((c) => c.text!) ?? [],
                     ),
+                // reasoning items carry summaries when the model emits them
+                thinking: items
+                    .filter((i) => i.type === 'reasoning')
+                    .flatMap((i) => {
+                        const sum = (
+                            i as unknown as {
+                                summary?: { type?: string; text?: string }[];
+                            }
+                        ).summary;
+                        return (sum ?? [])
+                            .filter((s) => s.text)
+                            .map((s) => s.text!);
+                    }),
                 toolCalls: items
                     .filter(
                         (i) => i.type === 'function_call' && i.call_id && i.name,

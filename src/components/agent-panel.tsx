@@ -3,7 +3,9 @@
 // scheduled & triggered tasks, run history, and provider settings.
 
 import {
+    Brain,
     Check,
+    ChevronRight,
     GitBranch,
     History,
     Play,
@@ -104,6 +106,77 @@ function relTime(ts: number): string {
     if (m < 60) return `${m} 分鐘前`;
     if (m < 60 * 24) return `${Math.round(m / 60)} 小時前`;
     return `${Math.round(m / 1440)} 天前`;
+}
+
+// ---- Claude-Code-style tool rows: collapsed one-liner, click to expand ----
+
+function briefArgs(args?: string): string {
+    if (!args) return '';
+    try {
+        const o = JSON.parse(args) as Record<string, unknown>;
+        return Object.entries(o)
+            .slice(0, 3)
+            .map(
+                ([k, v]) =>
+                    `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`,
+            )
+            .join(' ');
+    } catch {
+        return '';
+    }
+}
+
+function pretty(json?: string): string {
+    if (!json) return '';
+    try {
+        return JSON.stringify(JSON.parse(json), null, 2);
+    } catch {
+        return json;
+    }
+}
+
+function ToolRow({ b }: { b: Extract<AgentBlock, { type: 'tool' }> }) {
+    return (
+        <details className={styles.toolRow}>
+            <summary className={styles.toolHead}>
+                <ChevronRight size={10} className={styles.toolChevron} />
+                <span
+                    className={b.isError ? styles.toolDotErr : styles.toolDotOk}
+                />
+                <Wrench size={10} />
+                <span className={styles.toolName}>{b.name}</span>
+                <span className={styles.toolBrief}>
+                    {briefArgs(b.args) || b.summary}
+                </span>
+            </summary>
+            <div className={styles.toolDetail}>
+                {b.args && b.args !== '{}' && (
+                    <>
+                        <span className={styles.toolDetailLabel}>參數</span>
+                        <pre className={styles.toolPre}>{pretty(b.args)}</pre>
+                    </>
+                )}
+                <span className={styles.toolDetailLabel}>
+                    {b.isError ? '錯誤' : '結果'}
+                </span>
+                <pre className={styles.toolPre}>
+                    {pretty(b.result) || b.summary}
+                </pre>
+            </div>
+        </details>
+    );
+}
+
+function ThinkingRow({ text }: { text: string }) {
+    return (
+        <details className={styles.thinkRow}>
+            <summary className={styles.thinkHead}>
+                <ChevronRight size={10} className={styles.toolChevron} />
+                <Brain size={10} /> 思考過程
+            </summary>
+            <div className={styles.thinkBody}>{text}</div>
+        </details>
+    );
 }
 
 function ChatTab() {
@@ -356,12 +429,9 @@ function ChatTab() {
                         {skills.map((s) => `/${s.name}`).join('　')}
                     </div>
                 )}
-                {turns.map((t, i) => (
-                    <div
-                        key={i}
-                        className={t.role === 'user' ? styles.userMsg : styles.aiMsg}
-                    >
-                        {t.role === 'user' && (
+                {turns.map((t, i) =>
+                    t.role === 'user' ? (
+                        <div key={i} className={styles.userMsg}>
                             <button
                                 className={styles.msgForkBtn}
                                 title='從這裡分岔（不含此訊息之後的內容）'
@@ -370,77 +440,100 @@ function ChatTab() {
                             >
                                 <GitBranch size={10} />
                             </button>
-                        )}
-                        {t.blocks.map((b, j) => {
-                            if (b.type === 'text') {
-                                if (t.role === 'user') {
-                                    return <span key={j}>{b.text}</span>;
+                            {t.blocks.map((b, j) =>
+                                b.type === 'text' ? (
+                                    <span key={j}>{b.text}</span>
+                                ) : null,
+                            )}
+                        </div>
+                    ) : (
+                        // assistant blocks render standalone, Claude-Code
+                        // style: text in a bubble, tools/thinking as stacked
+                        // full-width expandable rows
+                        <div key={i} className={styles.aiGroup}>
+                            {t.blocks.map((b, j) => {
+                                if (b.type === 'text') {
+                                    return (
+                                        <div key={j} className={styles.aiMsg}>
+                                            <div className={styles.mdBody}>
+                                                <Markdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                >
+                                                    {b.text}
+                                                </Markdown>
+                                            </div>
+                                        </div>
+                                    );
                                 }
+                                if (b.type === 'thinking') {
+                                    return (
+                                        <ThinkingRow key={j} text={b.text} />
+                                    );
+                                }
+                                if (b.type === 'tool') {
+                                    return <ToolRow key={j} b={b} />;
+                                }
+                                const state = proposalDone[b.id];
+                                const p = b.proposal;
                                 return (
-                                    <div key={j} className={styles.mdBody}>
-                                        <Markdown remarkPlugins={[remarkGfm]}>
-                                            {b.text}
-                                        </Markdown>
-                                    </div>
-                                );
-                            }
-                            if (b.type === 'tool') {
-                                return (
-                                    <span key={j} className={styles.toolNote}>
-                                        <Wrench size={9} /> {b.name}
-                                    </span>
-                                );
-                            }
-                            const state = proposalDone[b.id];
-                            const p = b.proposal;
-                            return (
-                                <div key={j} className={styles.proposalCard}>
-                                    <span className={styles.proposalTitle}>
-                                        下單提案
-                                    </span>
-                                    <span className={styles.proposalBody}>
-                                        {p.action === 'Buy' ? '買進' : '賣出'}{' '}
-                                        {p.code} × {p.quantity} @{' '}
-                                        {p.price === null
-                                            ? '市價'
-                                            : fmtPrice(p.price)}
-                                        <br />
-                                        <span className={styles.proposalReason}>
-                                            {p.reason}
+                                    <div key={j} className={styles.proposalCard}>
+                                        <span className={styles.proposalTitle}>
+                                            下單提案
                                         </span>
-                                    </span>
-                                    {!state ? (
-                                        <div className={styles.proposalBtns}>
-                                            <button
-                                                className={styles.confirmBtn}
-                                                onClick={() => void confirm(b.id, p)}
-                                            >
-                                                確認下單
-                                            </button>
-                                            <button
-                                                className={styles.rejectBtn}
-                                                onClick={() =>
-                                                    setProposalDone((s) => ({
-                                                        ...s,
-                                                        [b.id]: 'cancelled',
-                                                    }))
+                                        <span className={styles.proposalBody}>
+                                            {p.action === 'Buy'
+                                                ? '買進'
+                                                : '賣出'}{' '}
+                                            {p.code} × {p.quantity} @{' '}
+                                            {p.price === null
+                                                ? '市價'
+                                                : fmtPrice(p.price)}
+                                            <br />
+                                            <span
+                                                className={
+                                                    styles.proposalReason
                                                 }
                                             >
-                                                取消
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <span className={styles.proposalDone}>
-                                            {state === 'confirmed'
-                                                ? '✓ 已確認下單'
-                                                : '已取消'}
+                                                {p.reason}
+                                            </span>
                                         </span>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ))}
+                                        {!state ? (
+                                            <div className={styles.proposalBtns}>
+                                                <button
+                                                    className={styles.confirmBtn}
+                                                    onClick={() =>
+                                                        void confirm(b.id, p)
+                                                    }
+                                                >
+                                                    確認下單
+                                                </button>
+                                                <button
+                                                    className={styles.rejectBtn}
+                                                    onClick={() =>
+                                                        setProposalDone((s) => ({
+                                                            ...s,
+                                                            [b.id]: 'cancelled',
+                                                        }))
+                                                    }
+                                                >
+                                                    取消
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span
+                                                className={styles.proposalDone}
+                                            >
+                                                {state === 'confirmed'
+                                                    ? '✓ 已確認下單'
+                                                    : '已取消'}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ),
+                )}
                 {busy && <div className={styles.aiMsg}>思考中…</div>}
             </div>
             )}
