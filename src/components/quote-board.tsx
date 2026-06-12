@@ -22,9 +22,12 @@ export function QuoteBoard({
     const chg = tick?.price_chg
         ? Number(tick.price_chg)
         : snapshot?.change_price;
-    const pct = tick?.pct_chg
-        ? Number(tick.pct_chg)
-        : snapshot?.change_rate;
+    // NEVER use tick.pct_chg — its unit differs between stk (％×100) and
+    // fop (％) streams; derive from the price change and reference instead
+    const pct =
+        chg !== undefined && ref
+            ? (chg / ref) * 100
+            : snapshot?.change_rate;
     const open = tick ? Number(tick.open) : snapshot?.open;
     const high = tick ? Number(tick.high) : snapshot?.high;
     const low = tick ? Number(tick.low) : snapshot?.low;

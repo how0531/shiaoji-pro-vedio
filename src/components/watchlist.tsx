@@ -40,11 +40,12 @@ const WatchRow = memo(function WatchRow({
         : close !== undefined && ref
           ? close - ref
           : undefined;
-    const pct = tick?.pct_chg
-        ? Number(tick.pct_chg)
-        : chg !== undefined && ref
-          ? (chg / ref) * 100
-          : undefined;
+    // NEVER use tick.pct_chg — its unit differs between stk (％×100) and
+    // fop (％) streams; derive from the price change and reference instead
+    const pct =
+        chg !== undefined && ref
+            ? (chg / ref) * 100
+            : item.snapshot?.change_rate;
 
     const dir = chg === undefined || chg === 0 ? 'flat' : chg > 0 ? 'up' : 'down';
     // the flash overlay is re-keyed by flashSeq so the animation replays on
