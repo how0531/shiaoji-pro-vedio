@@ -298,6 +298,26 @@ export const LAYOUT_PRESETS: { name: string; desc: string; workspace: Workspace 
         },
     },
     {
+        name: '閃電矩陣',
+        desc: '自選清單＋四條閃電梯：第一條連動點選，其餘可釘選熱門檔',
+        workspace: {
+            blocks: [
+                { id: 'watch-fm', type: 'watchlist', pin: null },
+                { id: 'flash-fm1', type: 'flash', pin: null },
+                { id: 'flash-fm2', type: 'flash', pin: 'TXFR1' },
+                { id: 'flash-fm3', type: 'flash', pin: '2330' },
+                { id: 'flash-fm4', type: 'flash', pin: '2454' },
+            ],
+            layout: [
+                { i: 'watch-fm', x: 0, y: 0, w: 4, h: 24, minW: 3, minH: 6 },
+                { i: 'flash-fm1', x: 4, y: 0, w: 5, h: 24, minW: 4, minH: 8 },
+                { i: 'flash-fm2', x: 9, y: 0, w: 5, h: 24, minW: 4, minH: 8 },
+                { i: 'flash-fm3', x: 14, y: 0, w: 5, h: 24, minW: 4, minH: 8 },
+                { i: 'flash-fm4', x: 19, y: 0, w: 5, h: 24, minW: 4, minH: 8 },
+            ],
+        },
+    },
+    {
         name: '熱力選股',
         desc: '熱力圖+排行掃標的，點格即連動全終端',
         workspace: {
