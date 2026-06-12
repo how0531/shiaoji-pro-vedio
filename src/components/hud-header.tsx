@@ -1,5 +1,6 @@
 // src/components/hud-header.tsx — top status bar with workspace menus
 
+import { Eye, EyeOff, Volume2, VolumeX, X, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useStreamStatus } from '../hooks/use-stream';
 import {
@@ -33,6 +34,7 @@ import {
     checkForUpdates,
     listenTrayEvents,
     openFlashTiles,
+    type FlashTileLayout,
 } from '../lib/tauri';
 import { fmtMoney } from '../lib/utils/format';
 import { LAYOUT_PRESETS, type BlockType } from '../lib/workspace';
@@ -62,7 +64,7 @@ function Menu({
     label,
     children,
 }: {
-    label: string;
+    label: React.ReactNode;
     children: (close: () => void) => React.ReactNode;
 }) {
     const [open, setOpen] = useState(false);
@@ -152,7 +154,17 @@ function ThemeSettings() {
                             setSound(!sound);
                         }}
                     >
-                        {sound ? '🔉 成交/警示音效開啟' : '🔇 音效關閉'}
+                        {sound ? (
+                            <>
+                                <Volume2 size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                成交/警示音效開啟
+                            </>
+                        ) : (
+                            <>
+                                <VolumeX size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                音效關閉
+                            </>
+                        )}
                     </button>
                     <span className={styles.settingLabel}>
                         隱私 Privacy
@@ -162,14 +174,34 @@ function ThemeSettings() {
                         title='截圖/分享畫面時遮蔽帳號號碼與姓名'
                         onClick={() => setPrivacyMode(!priv)}
                     >
-                        {priv ? '🕶 帳號已遮蔽' : '顯示完整帳號'}
+                        {priv ? (
+                            <>
+                                <EyeOff size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                帳號已遮蔽
+                            </>
+                        ) : (
+                            <>
+                                <Eye size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                顯示完整帳號
+                            </>
+                        )}
                     </button>
                     <button
                         className={styles.opt[privMoney ? 'on' : 'off']}
                         title='遮蔽水位/數量/損益/權益等金額（炫耀截圖用）'
                         onClick={() => setPrivacyMoney(!privMoney)}
                     >
-                        {privMoney ? '🕶 金額已遮蔽' : '顯示完整金額'}
+                        {privMoney ? (
+                            <>
+                                <EyeOff size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                金額已遮蔽
+                            </>
+                        ) : (
+                            <>
+                                <Eye size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                                顯示完整金額
+                            </>
+                        )}
                     </button>
                 </>
             )}
@@ -454,7 +486,7 @@ function ProfilesMenu({
                                 title='刪除此版面'
                                 onClick={() => onDeleteProfile(p)}
                             >
-                                ✕
+                                <X size={10} />
                             </button>
                         </div>
                     ))}
@@ -467,6 +499,87 @@ function ProfilesMenu({
                     >
                         ↺ 重設為預設版面
                     </button>
+                </>
+            )}
+        </Menu>
+    );
+}
+
+// ⚡全開 layout picker: thumbnails first, windows open per the chosen
+// arrangement (full-screen grids / right column / bottom row)
+const FLASH_LAYOUTS: (FlashTileLayout & { key: string; label: string })[] = [
+    { key: 'g9', label: '九宮格', cols: 3, rows: 3, region: 'full' },
+    { key: 'g6', label: '六宮格', cols: 3, rows: 2, region: 'full' },
+    { key: 'g4', label: '田字', cols: 2, rows: 2, region: 'full' },
+    { key: 'right4', label: '右側直欄', cols: 1, rows: 4, region: 'right' },
+    { key: 'bottom4', label: '下方橫列', cols: 4, rows: 1, region: 'bottom' },
+];
+
+function FlashThumb({ layout }: { layout: FlashTileLayout }) {
+    const regionStyle: React.CSSProperties =
+        layout.region === 'right'
+            ? { top: 1, bottom: 1, right: 1, width: '26%' }
+            : layout.region === 'bottom'
+              ? { left: 1, right: 1, bottom: 1, height: '34%' }
+              : { inset: 1 };
+    return (
+        <span className={styles.flashThumb}>
+            <span
+                className={styles.flashThumbRegion}
+                style={{
+                    ...regionStyle,
+                    gridTemplateColumns: `repeat(${layout.cols}, 1fr)`,
+                    gridTemplateRows: `repeat(${layout.rows}, 1fr)`,
+                }}
+            >
+                {Array.from({ length: layout.cols * layout.rows }).map(
+                    (_, i) => (
+                        <span key={i} className={styles.flashThumbCell} />
+                    ),
+                )}
+            </span>
+        </span>
+    );
+}
+
+function FlashTilesMenu({ flashCodes }: { flashCodes: string[] }) {
+    return (
+        <Menu
+            label={
+                <>
+                    <Zap size={11} style={{ verticalAlign: '-1px' }} /> 全開
+                </>
+            }
+        >
+            {(close) => (
+                <>
+                    <span className={styles.settingLabel}>
+                        閃電下單全開 — 選擇排版
+                    </span>
+                    {FLASH_LAYOUTS.map((lay) => {
+                        const count = Math.min(
+                            flashCodes.length,
+                            lay.cols * lay.rows,
+                        );
+                        return (
+                            <button
+                                key={lay.key}
+                                className={styles.flashLayoutItem}
+                                onClick={() => {
+                                    close();
+                                    void openFlashTiles(flashCodes, lay);
+                                }}
+                            >
+                                <FlashThumb layout={lay} />
+                                <span className={styles.flashLayoutLabel}>
+                                    {lay.label}
+                                    <span className={styles.presetDesc}>
+                                        自選前 {count} 檔
+                                    </span>
+                                </span>
+                            </button>
+                        );
+                    })}
                 </>
             )}
         </Menu>
@@ -516,14 +629,27 @@ export function HudHeader({
     }, []);
 
     useEffect(() => {
-        fetchInfo()
-            .then((info) => {
-                setSimulation(info.simulation);
-                setVersion(info.version);
-            })
-            .catch(() => setSimulation(null));
+        // retry until the server answers — a one-shot fetch loses the race
+        // against a daemon that is still starting after an app update
+        let done = false;
+        const load = () =>
+            fetchInfo()
+                .then((info) => {
+                    done = true;
+                    clearInterval(retry);
+                    setSimulation(info.simulation);
+                    setVersion(info.version);
+                })
+                .catch(() => undefined);
+        const retry = setInterval(() => {
+            if (!done) void load();
+        }, 5000);
+        void load();
         const t = setInterval(() => setNow(new Date()), 1000);
-        return () => clearInterval(t);
+        return () => {
+            clearInterval(t);
+            clearInterval(retry);
+        };
     }, []);
 
     return (
@@ -569,13 +695,7 @@ export function HudHeader({
                 onAddBlock={onAddBlock}
             />
             {flashCodes.length > 0 && (
-                <button
-                    className={styles.resetBtn}
-                    title={`一鍵外開自選前 ${Math.min(9, flashCodes.length)} 檔的閃電下單，平鋪滿螢幕`}
-                    onClick={() => void openFlashTiles(flashCodes.slice(0, 9))}
-                >
-                    ⚡ 全開
-                </button>
+                <FlashTilesMenu flashCodes={flashCodes} />
             )}
             <ProfilesMenu
                 profiles={profiles}

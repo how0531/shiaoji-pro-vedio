@@ -254,21 +254,43 @@ export async function openPopout(type: string, code: string | null) {
     });
 }
 
-// 閃電全開: pop a flash-order window for each code, tiled to fill the
-// screen (3 columns). Desktop uses real windows; browser falls back to
-// window.open with positioned features.
-export async function openFlashTiles(codes: string[]) {
-    if (codes.length === 0) return;
-    const cols = codes.length <= 4 ? 2 : 3;
-    const rows = Math.ceil(codes.length / cols);
+// 閃電全開: pop a flash-order window per code, arranged by the chosen
+// layout — full-screen grids, a right-side column, or a bottom row.
+export interface FlashTileLayout {
+    cols: number;
+    rows: number;
+    region: 'full' | 'right' | 'bottom';
+}
+
+export async function openFlashTiles(
+    codes: string[],
+    layout: FlashTileLayout = { cols: 3, rows: 3, region: 'full' },
+) {
+    const count = Math.min(codes.length, layout.cols * layout.rows);
+    if (count === 0) return;
+    const use = codes.slice(0, count);
     const availW = window.screen.availWidth;
     const availH = window.screen.availHeight;
-    const w = Math.floor(availW / cols);
-    const h = Math.floor(availH / rows);
+    let originX = 0;
+    let originY = 0;
+    let gridW = availW;
+    let gridH = availH;
+    if (layout.region === 'right') {
+        gridW = Math.max(360, Math.floor(availW / 4));
+        originX = availW - gridW;
+    } else if (layout.region === 'bottom') {
+        gridH = Math.max(320, Math.floor(availH / 3));
+        originY = availH - gridH;
+    }
+    const w = Math.floor(gridW / layout.cols);
+    const h = Math.floor(gridH / layout.rows);
+    const posOf = (i: number) => ({
+        x: originX + (i % layout.cols) * w,
+        y: originY + Math.floor(i / layout.cols) * h,
+    });
     if (!isTauri) {
-        codes.forEach((code, i) => {
-            const x = (i % cols) * w;
-            const y = Math.floor(i / cols) * h;
+        use.forEach((code, i) => {
+            const { x, y } = posOf(i);
             const qs = new URLSearchParams({ popout: 'flash', code });
             window.open(
                 `${window.location.pathname}?${qs}`,
@@ -279,18 +301,19 @@ export async function openFlashTiles(codes: string[]) {
         return;
     }
     const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-    codes.forEach((code, i) => {
+    use.forEach((code, i) => {
+        const { x, y } = posOf(i);
         const qs = new URLSearchParams({ popout: 'flash', code });
         popoutCounter += 1;
         new WebviewWindow(`popout-flashtile-${popoutCounter}`, {
             url: `index.html?${qs}`,
             title: `⚡ ${code}`,
-            x: (i % cols) * w,
-            y: Math.floor(i / cols) * h,
+            x,
+            y,
             width: w,
             height: h,
-            minWidth: 320,
-            minHeight: 300,
+            minWidth: 300,
+            minHeight: 280,
         });
     });
 }

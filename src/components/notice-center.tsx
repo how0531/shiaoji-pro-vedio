@@ -1,6 +1,7 @@
 // src/components/notice-center.tsx — 通知中心: persistent log of every
 // in-app notice and order event (toasts disappear; this keeps history).
 
+import { Check, Dot, X } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import {
     clearNoticeLog,
@@ -19,7 +20,11 @@ const FILTERS: { key: Filter; label: string }[] = [
     { key: 'info', label: '訊息' },
 ];
 
-const KIND_ICON = { ok: '✓', err: '✕', info: '·' } as const;
+const KIND_ICON = {
+    ok: <Check size={11} />,
+    err: <X size={11} />,
+    info: <Dot size={13} />,
+} as const;
 
 export function NoticeCenter() {
     const log = useSyncExternalStore(subscribeNoticeLog, getNoticeLog);

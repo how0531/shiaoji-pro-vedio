@@ -1,6 +1,7 @@
 // src/components/server-manager.tsx — desktop-only shioaji server控制台:
 // status, start/stop/restart, API-key settings, simulation/production mode.
 
+import { X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { usePoll } from '../hooks/use-poll';
 import { useStreamStatus } from '../hooks/use-stream';
@@ -368,7 +369,7 @@ export function ServerManager({
                                         persist({ caPath: '', caPasswd: '' })
                                     }
                                 >
-                                    ✕
+                                    <X size={10} />
                                 </button>
                             )}
                         </div>

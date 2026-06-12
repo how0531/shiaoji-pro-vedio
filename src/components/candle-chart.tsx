@@ -12,6 +12,7 @@ import {
     type ISeriesApi,
     type UTCTimestamp,
 } from 'lightweight-charts';
+import { X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import { bollinger, ema, sma, vwap } from '../lib/indicators';
@@ -870,7 +871,7 @@ export function CandleChart({
                                     className={styles.triggerRemove}
                                     onClick={() => removeTrigger(t.id)}
                                 >
-                                    ✕
+                                    <X size={10} />
                                 </button>
                             </div>
                         ))}

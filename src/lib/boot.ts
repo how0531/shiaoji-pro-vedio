@@ -76,14 +76,29 @@ async function run() {
                             title: '伺服器自動啟動失敗',
                             body: res.output.slice(0, 120),
                         });
-                    } else if (res.portChanged) {
-                        // API base moved to a new port — reboot the UI on it
+                    } else if (!res.attached || res.portChanged) {
+                        // the daemon (re)started while panels were already
+                        // firing their one-shot requests into the gap —
+                        // reload once healthy so everything boots cleanly
                         notify({
                             kind: 'info',
-                            title: `伺服器使用 port ${res.port}`,
-                            body: '畫面將自動重新載入',
+                            title: '⏳ 伺服器啟動中…',
+                            body: '就緒後畫面將自動重新載入',
                         });
-                        setTimeout(() => window.location.reload(), 1500);
+                        const deadline = Date.now() + 90_000;
+                        const timer = setInterval(async () => {
+                            if (Date.now() > deadline) {
+                                clearInterval(timer);
+                                return;
+                            }
+                            try {
+                                await fetchHealth();
+                                clearInterval(timer);
+                                window.location.reload();
+                            } catch {
+                                // not up yet
+                            }
+                        }, 2000);
                         return;
                     }
                 }

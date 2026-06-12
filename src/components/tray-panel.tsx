@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePoll } from '../hooks/use-poll';
 import { useQuote } from '../hooks/use-stream';
 import { useWatchlist } from '../hooks/use-watchlist';
+import { Maximize2, Settings2 } from 'lucide-react';
 import { maskMoney, usePrivacyMoney } from '../lib/privacy';
 import { isTauri } from '../lib/runtime';
 import {
@@ -178,14 +179,14 @@ export function TrayPanel() {
                     title='自訂顯示內容'
                     onClick={() => setGearOpen((o) => !o)}
                 >
-                    ⚙
+                    <Settings2 size={13} />
                 </button>
                 <button
                     className={styles.gearBtn}
                     title='開啟主視窗'
                     onClick={() => void pickCode('')}
                 >
-                    ⤢
+                    <Maximize2 size={13} />
                 </button>
             </div>
 

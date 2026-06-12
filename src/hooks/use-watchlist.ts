@@ -243,13 +243,30 @@ export function useWatchlist() {
         }
     }, [serverLists, refreshLists, setActiveList]);
 
-    // boot: load lists; migrate legacy local list / create default if empty
+    // boot: load lists; migrate legacy local list / create default if empty.
+    // The first fetch can race a server that is still warming up after an
+    // app update/restart — retry with backoff instead of giving up (the
+    // poll-based panels recover on their own; this one must too).
     useEffect(() => {
         if (initStarted.current) return;
         initStarted.current = true;
         (async () => {
             try {
-                let lists = await refreshLists();
+                let lists: ServerWatchlist[] = [];
+                let lastErr: unknown = null;
+                for (let attempt = 0; attempt < 10; attempt++) {
+                    try {
+                        lists = await refreshLists();
+                        lastErr = null;
+                        break;
+                    } catch (e) {
+                        lastErr = e;
+                        await new Promise((r) =>
+                            setTimeout(r, 1500 + attempt * 1000),
+                        );
+                    }
+                }
+                if (lastErr) throw lastErr;
                 if (lists.length === 0) {
                     // first run — migrate the old local list or use defaults
                     let seed = DEFAULT_SYMBOLS as {

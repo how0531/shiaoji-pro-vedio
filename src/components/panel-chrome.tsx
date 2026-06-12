@@ -1,6 +1,7 @@
 // src/components/panel-chrome.tsx — shared panel title bar: drag handle,
 // link/pin symbol toggle, remove button.
 
+import { ExternalLink, Link2, Pin, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import * as panel from './panel.css';
 import * as styles from './panel-chrome.css';
@@ -43,7 +44,8 @@ export function PanelChrome({
                             currentCode && onPinChange(currentCode)
                         }
                     >
-                        🔗 連動
+                        <Link2 size={10} style={{ verticalAlign: '-1px' }} />{' '}
+                        連動
                     </button>
                 ) : (
                     <>
@@ -66,7 +68,8 @@ export function PanelChrome({
                             title='已鎖定；點擊恢復連動'
                             onClick={() => onPinChange(null)}
                         >
-                            📌 鎖定
+                            <Pin size={10} style={{ verticalAlign: '-1px' }} />{' '}
+                            鎖定
                         </button>
                     </>
                 ))}
@@ -76,7 +79,7 @@ export function PanelChrome({
                     title='彈出為獨立視窗（多螢幕）'
                     onClick={onPopout}
                 >
-                    ⧉
+                    <ExternalLink size={11} />
                 </button>
             )}
             {onRemove && (
@@ -85,7 +88,7 @@ export function PanelChrome({
                     title='移除此面板'
                     onClick={onRemove}
                 >
-                    ✕
+                    <X size={11} />
                 </button>
             )}
         </div>

@@ -279,6 +279,52 @@ export const menuItem = style({
     },
 });
 
+// ⚡全開 layout picker thumbnails
+export const flashLayoutItem = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.sm,
+    width: '100%',
+    padding: '5px 8px',
+    cursor: 'pointer',
+    background: 'transparent',
+    border: '1px solid transparent',
+    borderRadius: vars.radius.sm,
+    textAlign: 'left',
+    ':hover': { background: vars.color.muted },
+});
+
+export const flashThumb = style({
+    position: 'relative',
+    width: '56px',
+    height: '34px',
+    flexShrink: 0,
+    background: vars.color.inset,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: '3px',
+});
+
+export const flashThumbRegion = style({
+    position: 'absolute',
+    display: 'grid',
+    gap: '1px',
+});
+
+export const flashThumbCell = style({
+    background: vars.color.accent,
+    opacity: 0.55,
+    borderRadius: '1px',
+});
+
+export const flashLayoutLabel = style({
+    fontFamily: vars.font.body,
+    fontSize: '0.72rem',
+    fontWeight: 500,
+    color: vars.color.foreground,
+    display: 'flex',
+    flexDirection: 'column',
+});
+
 export const presetDesc = style({
     display: 'block',
     fontSize: '0.6rem',

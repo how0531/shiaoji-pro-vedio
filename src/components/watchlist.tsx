@@ -2,6 +2,15 @@
 // Pick a list, add symbols (type auto-detected), hover a row to remove,
 // drag rows to reorder (persisted to the server).
 
+import {
+    ArrowDown,
+    ArrowDownUp,
+    ArrowUp,
+    Plus,
+    TrendingUp,
+    Trash2,
+    X,
+} from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import type { WatchItem } from '../hooks/use-watchlist';
@@ -131,7 +140,7 @@ const WatchRow = memo(function WatchRow({
                     onRemove(item.contract.code);
                 }}
             >
-                ✕
+                <X size={10} />
             </button>
         </div>
     );
@@ -312,11 +321,13 @@ export function Watchlist({
                                 )
                             }
                         >
-                            {sortMode === 'custom'
-                                ? '⇅'
-                                : sortMode === 'desc'
-                                  ? '↓%'
-                                  : '↑%'}
+                            {sortMode === 'custom' ? (
+                                <ArrowDownUp size={12} />
+                            ) : sortMode === 'desc' ? (
+                                <ArrowDown size={12} />
+                            ) : (
+                                <ArrowUp size={12} />
+                            )}
                         </button>
                         <button
                             className={`${styles.listBtn} ${
@@ -333,14 +344,14 @@ export function Watchlist({
                                 })
                             }
                         >
-                            📈
+                            <TrendingUp size={12} />
                         </button>
                         <button
                             className={styles.listBtn}
                             title='建立新清單'
                             onClick={() => setCreating(true)}
                         >
-                            ＋
+                            <Plus size={12} />
                         </button>
                         <button
                             className={`${styles.listBtn} ${
@@ -364,7 +375,7 @@ export function Watchlist({
                                 }
                             }}
                         >
-                            {confirmDelete ? '確認?' : '🗑'}
+                            {confirmDelete ? '確認?' : <Trash2 size={12} />}
                         </button>
                     </>
                 )}
