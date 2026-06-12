@@ -38,12 +38,15 @@ import {
 import * as panel from './panel.css';
 import * as styles from './candle-chart.css';
 
+// NOTE: the kbars API only serves 1-minute bars, so 1D aggregates a huge
+// payload (a year of TXF ≈ 280k bars / 18MB) — keep the range tight enough
+// to load on slow machines without looking dead
 const TIMEFRAMES = [
     { label: '1m', minutes: 1, days: 3 },
     { label: '5m', minutes: 5, days: 10 },
     { label: '15m', minutes: 15, days: 20 },
     { label: '60m', minutes: 60, days: 60 },
-    { label: '1D', minutes: 1440, days: 365 },
+    { label: '1D', minutes: 1440, days: 240 },
 ] as const;
 
 type TradeMode = 'observe' | 'buy' | 'sell' | 'stop' | 'take' | 'alert';
@@ -93,6 +96,12 @@ export function CandleChart({
     const lastBarRef = useRef<Candle | null>(null);
     const [tfIdx, setTfIdx] = useState(1); // default 5m
     const [empty, setEmpty] = useState(false);
+    const [loading, setLoading] = useState(false);
+    // ticks must NOT touch the series until history for the current
+    // (symbol, timeframe) is in place — updating a freshly-switched series
+    // with a bucket older than its last point makes lightweight-charts
+    // throw inside the effect, which unmounts the whole app (issue #1)
+    const loadedKeyRef = useRef('');
     const quote = useQuote(contract.code);
     const tf = TIMEFRAMES[tfIdx] ?? TIMEFRAMES[1];
     const themeSettings = useThemeSettings();
@@ -332,13 +341,27 @@ export function CandleChart({
     // load kbars on symbol/timeframe change
     useEffect(() => {
         let cancelled = false;
+        const loadKey = `${contract.code}|${tf.minutes}`;
+        loadedKeyRef.current = ''; // freeze tick updates while loading
         lastBarRef.current = null;
         setEmpty(false);
+        setLoading(true);
+        const clearSeries = () => {
+            // the series must never keep a stale timeframe's data — a later
+            // tick bucketed for the new timeframe would be "older" than the
+            // stale tail and crash the chart library
+            candleSeriesRef.current?.setData([]);
+            volSeriesRef.current?.setData([]);
+            barsRef.current = [];
+            setDataVersion((v) => v + 1);
+            loadedKeyRef.current = loadKey; // live bars may build from here
+        };
         fetchKbars(contract, dateStrOffset(tf.days), dateStrOffset(0))
             .then((k) => {
                 if (cancelled || !candleSeriesRef.current) return;
                 const bars = aggregate(kbarsToCandles(k), tf.minutes);
                 if (bars.length === 0) {
+                    clearSeries();
                     setEmpty(true);
                     return;
                 }
@@ -361,10 +384,18 @@ export function CandleChart({
                 );
                 lastBarRef.current = bars[bars.length - 1] ?? null;
                 barsRef.current = bars;
+                loadedKeyRef.current = loadKey;
                 setDataVersion((v) => v + 1);
                 chartRef.current?.timeScale().scrollToRealTime();
             })
-            .catch(() => setEmpty(true));
+            .catch(() => {
+                if (cancelled) return;
+                clearSeries();
+                setEmpty(true);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
         return () => {
             cancelled = true;
         };
@@ -379,6 +410,8 @@ export function CandleChart({
     }
     useEffect(() => {
         if (!tick || tick.code !== contract.code) return;
+        // history for this (symbol, timeframe) not in place yet
+        if (loadedKeyRef.current !== `${contract.code}|${tf.minutes}`) return;
         const series = candleSeriesRef.current;
         if (!series) return;
         const price = Number(tick.close);
@@ -406,18 +439,23 @@ export function CandleChart({
             bar.volume += tick.volume;
         }
         lastBarRef.current = bar;
-        series.update({
-            time: bar.time as UTCTimestamp,
-            open: bar.open,
-            high: bar.high,
-            low: bar.low,
-            close: bar.close,
-        });
-        volSeriesRef.current?.update({
-            time: bar.time as UTCTimestamp,
-            value: bar.volume,
-            color: bar.close >= bar.open ? colors.upVol : colors.downVol,
-        });
+        try {
+            series.update({
+                time: bar.time as UTCTimestamp,
+                open: bar.open,
+                high: bar.high,
+                low: bar.low,
+                close: bar.close,
+            });
+            volSeriesRef.current?.update({
+                time: bar.time as UTCTimestamp,
+                value: bar.volume,
+                color: bar.close >= bar.open ? colors.upVol : colors.downVol,
+            });
+        } catch {
+            // a rejected update (e.g. timestamp older than the series tail)
+            // must never take the app down — history reload will resync
+        }
     }, [tick, contract.code, tf.minutes]);
 
     // overlay indicators
@@ -740,7 +778,14 @@ export function CandleChart({
                 </div>
             </div>
             <div ref={hostRef} className={styles.chartHost}>
-                {empty && (
+                {loading && (
+                    <div className={styles.emptyMsg}>
+                        <span className={panel.mono}>
+                            載入 {tf.label} K 線…
+                        </span>
+                    </div>
+                )}
+                {empty && !loading && (
                     <div className={styles.emptyMsg}>
                         <span className={panel.mono}>無 K 線資料</span>
                     </div>

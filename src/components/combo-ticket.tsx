@@ -1,0 +1,327 @@
+// src/components/combo-ticket.tsx — 期貨/選擇權組合單 (spread/straddle).
+// Two legs with live synthetic pricing from each leg's book (issue #1):
+// buying the combo lifts the Buy legs' asks and hits the Sell legs' bids,
+// so 合成買價 = Σ(±bid/ask) accordingly. Working combos listed with cancel.
+
+import { useCallback, useEffect, useState } from 'react';
+import { useQuote } from '../hooks/use-stream';
+import { usePoll } from '../hooks/use-poll';
+import { ensureContract } from '../lib/contracts-cache';
+import {
+    cancelComboOrder,
+    fetchComboTrades,
+    placeComboOrder,
+    subscribeQuote,
+    type ComboLeg,
+    type ComboTrade,
+} from '../lib/shioaji';
+import { notify } from '../lib/trade';
+import type { ContractInfo } from '../lib/types/contract';
+import { fmtPrice } from '../lib/utils/format';
+import * as styles from './order-ticket.css';
+import * as dock from './bottom-dock.css';
+import * as panel from './panel.css';
+
+interface LegState {
+    input: string;
+    contract: ContractInfo | null;
+    action: 'Buy' | 'Sell';
+    error: boolean;
+}
+
+const EMPTY_LEG: LegState = {
+    input: '',
+    contract: null,
+    action: 'Buy',
+    error: false,
+};
+
+function LegQuote({
+    contract,
+    action,
+}: {
+    contract: ContractInfo;
+    action: 'Buy' | 'Sell';
+}) {
+    const quote = useQuote(contract.code);
+    const ba = quote?.bidask;
+    const bid = ba ? Number(ba.bid_price[0]) : undefined;
+    const ask = ba ? Number(ba.ask_price[0]) : undefined;
+    return (
+        <span className={styles.costRow}>
+            {contract.name}｜買 {fmtPrice(bid)}／賣 {fmtPrice(ask)}
+            {action === 'Buy' ? '（付賣價）' : '（收買價）'}
+        </span>
+    );
+}
+
+// net synthetic level-1 for the combo from both legs' books
+function useSynthetic(legs: LegState[]) {
+    const q0 = useQuote(legs[0]?.contract?.code ?? null);
+    const q1 = useQuote(legs[1]?.contract?.code ?? null);
+    const quotes = [q0, q1];
+    let bid = 0;
+    let ask = 0;
+    let complete = true;
+    legs.forEach((leg, i) => {
+        const ba = quotes[i]?.bidask;
+        const b = ba ? Number(ba.bid_price[0]) : NaN;
+        const a = ba ? Number(ba.ask_price[0]) : NaN;
+        if (!leg.contract || !Number.isFinite(b) || !Number.isFinite(a)) {
+            complete = false;
+            return;
+        }
+        if (leg.action === 'Buy') {
+            ask += a; // buying the combo pays this leg's ask
+            bid += b;
+        } else {
+            ask -= b; // selling leg receives its bid
+            bid -= a;
+        }
+    });
+    return complete
+        ? { bid: Number(bid.toFixed(2)), ask: Number(ask.toFixed(2)) }
+        : null;
+}
+
+const ACTIVE_COMBO = new Set(['PendingSubmit', 'PreSubmitted', 'Submitted', 'PartFilled']);
+
+export function ComboTicket() {
+    const [legs, setLegs] = useState<LegState[]>([
+        { ...EMPTY_LEG },
+        { ...EMPTY_LEG, action: 'Sell' },
+    ]);
+    const [action, setAction] = useState<'Buy' | 'Sell'>('Buy');
+    const [price, setPrice] = useState('');
+    const [qty, setQty] = useState(1);
+    const [armed, setArmed] = useState(false);
+    const [busy, setBusy] = useState(false);
+
+    const tradesPoll = usePoll<ComboTrade[]>(
+        useCallback(() => fetchComboTrades().catch(() => []), []),
+        10000,
+    );
+
+    const setLeg = (i: number, patch: Partial<LegState>) =>
+        setLegs((prev) =>
+            prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
+        );
+
+    const resolveLeg = async (i: number) => {
+        const code = legs[i]!.input.trim().toUpperCase();
+        if (!code) return;
+        try {
+            const c = await ensureContract(code);
+            if (c.security_type !== 'FUT' && c.security_type !== 'OPT') {
+                throw new Error('組合單只支援期貨/選擇權');
+            }
+            setLeg(i, { contract: c, error: false, input: c.code });
+            await Promise.allSettled([
+                subscribeQuote(c, 'Tick'),
+                subscribeQuote(c, 'BidAsk'),
+            ]);
+        } catch {
+            setLeg(i, { contract: null, error: true });
+        }
+    };
+
+    const synth = useSynthetic(legs);
+    // autofill price from synthetic mid until the user edits it
+    const [priceTouched, setPriceTouched] = useState(false);
+    useEffect(() => {
+        if (!priceTouched && synth) {
+            setPrice(((synth.bid + synth.ask) / 2).toFixed(0));
+        }
+    }, [synth, priceTouched]);
+
+    const ready = legs.every((l) => l.contract);
+
+    const execute = async () => {
+        if (!armed) {
+            setArmed(true);
+            return;
+        }
+        setArmed(false);
+        if (!ready) return;
+        setBusy(true);
+        try {
+            const legReqs: ComboLeg[] = legs.map((l) => ({
+                action: l.action,
+                security_type: l.contract!.security_type,
+                exchange: l.contract!.exchange,
+                code: l.contract!.code,
+                target_code: l.contract!.target_code ?? null,
+            }));
+            const p = Number(price);
+            const trade = await placeComboOrder(legReqs, {
+                action,
+                price: Number.isFinite(p) ? p : 0,
+                quantity: qty,
+                price_type: 'LMT',
+                order_type: 'IOC', // TAIFEX combos match immediately or not
+                octype: 'Auto',
+            });
+            notify({
+                kind: 'ok',
+                title: '🧩 組合單已送出',
+                body: `${trade.status.status} #${trade.order.seqno || trade.order.id.slice(0, 8)}`,
+            });
+            tradesPoll.refresh();
+        } catch (e) {
+            notify({
+                kind: 'err',
+                title: '組合單失敗',
+                body: e instanceof Error ? e.message : String(e),
+            });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const doCancel = async (t: ComboTrade) => {
+        try {
+            await cancelComboOrder(t.order.id);
+            notify({ kind: 'ok', title: '🗑 組合刪單已送出', body: t.order.id });
+        } catch (e) {
+            notify({
+                kind: 'err',
+                title: '組合刪單失敗',
+                body: e instanceof Error ? e.message : String(e),
+            });
+        }
+        tradesPoll.refresh();
+    };
+
+    const working = (tradesPoll.data ?? []).filter((t) =>
+        ACTIVE_COMBO.has(t.status.status),
+    );
+
+    return (
+        <div className={styles.body}>
+            {legs.map((leg, i) => (
+                <div key={i}>
+                    <div className={styles.fieldRow}>
+                        <span className={styles.fieldLabel}>腳 {i + 1}</span>
+                        <div className={styles.segGroup} style={{ flex: '0 0 auto' }}>
+                            {(['Buy', 'Sell'] as const).map((a) => (
+                                <button
+                                    key={a}
+                                    className={styles.seg[leg.action === a ? 'on' : 'off']}
+                                    onClick={() => {
+                                        setLeg(i, { action: a });
+                                        setArmed(false);
+                                    }}
+                                >
+                                    {a === 'Buy' ? '買' : '賣'}
+                                </button>
+                            ))}
+                        </div>
+                        <input
+                            className={styles.numInput}
+                            placeholder='代碼 如 TXFF6 / TX417000C6'
+                            value={leg.input}
+                            style={leg.error ? { borderColor: 'var(--danger, #f23645)' } : undefined}
+                            onChange={(e) => setLeg(i, { input: e.target.value, contract: null })}
+                            onKeyDown={(e) => e.key === 'Enter' && resolveLeg(i)}
+                            onBlur={() => resolveLeg(i)}
+                        />
+                    </div>
+                    {leg.contract && (
+                        <LegQuote contract={leg.contract} action={leg.action} />
+                    )}
+                </div>
+            ))}
+
+            {synth && (
+                <span className={styles.costRow}>
+                    合成報價｜
+                    <span className={panel.dirText.up}>
+                        {' '}買 {fmtPrice(synth.bid)}{' '}
+                    </span>
+                    ／
+                    <span className={panel.dirText.down}>
+                        {' '}賣 {fmtPrice(synth.ask)}{' '}
+                    </span>
+                    ｜中價 {fmtPrice((synth.bid + synth.ask) / 2)}
+                </span>
+            )}
+
+            <div className={styles.fieldRow}>
+                <span className={styles.fieldLabel}>組合</span>
+                <div className={styles.segGroup}>
+                    {(['Buy', 'Sell'] as const).map((a) => (
+                        <button
+                            key={a}
+                            className={styles.seg[action === a ? 'on' : 'off']}
+                            onClick={() => {
+                                setAction(a);
+                                setArmed(false);
+                            }}
+                        >
+                            {a === 'Buy' ? '買進組合' : '賣出組合'}
+                        </button>
+                    ))}
+                </div>
+            </div>
+            <div className={styles.fieldRow}>
+                <span className={styles.fieldLabel}>淨價</span>
+                <input
+                    className={styles.numInput}
+                    value={price}
+                    inputMode='decimal'
+                    onChange={(e) => {
+                        setPriceTouched(true);
+                        setPrice(e.target.value);
+                        setArmed(false);
+                    }}
+                />
+                <span className={styles.fieldLabel}>量</span>
+                <input
+                    className={styles.numInput}
+                    value={qty}
+                    inputMode='numeric'
+                    onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isInteger(v) && v >= 1) setQty(v);
+                    }}
+                />
+            </div>
+
+            <button
+                className={styles.execBtn[armed ? 'armed' : action === 'Buy' ? 'buy' : 'sell']}
+                disabled={busy || !ready}
+                onClick={execute}
+            >
+                {busy
+                    ? '傳送中…'
+                    : armed
+                      ? `確認${action === 'Buy' ? '買進' : '賣出'}組合 ${qty} @ ${price}（LMT/IOC）`
+                      : ready
+                        ? `${action === 'Buy' ? '買進' : '賣出'}組合下單`
+                        : '先輸入兩腳合約代碼'}
+            </button>
+
+            {working.length > 0 && (
+                <>
+                    <span className={styles.fieldLabel}>在途組合單</span>
+                    {working.map((t) => (
+                        <span key={t.order.id} className={styles.costRow}>
+                            {t.order.action === 'Buy' ? '買' : '賣'}{' '}
+                            {t.contract.legs
+                                .map((l) => `${l.action === 'Buy' ? '+' : '−'}${l.code}`)
+                                .join(' ')}{' '}
+                            {t.order.quantity} @ {fmtPrice(t.order.price)}（
+                            {t.status.status}）{' '}
+                            <button
+                                className={dock.cancelBtn}
+                                onClick={() => void doCancel(t)}
+                            >
+                                刪單
+                            </button>
+                        </span>
+                    ))}
+                </>
+            )}
+        </div>
+    );
+}

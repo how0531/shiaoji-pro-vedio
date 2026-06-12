@@ -432,17 +432,39 @@ function OrdersTable({
     );
 }
 
+// stock positions carry yd_quantity; futures ones don't
+function isStockPosition(p: Position): boolean {
+    return 'yd_quantity' in p;
+}
+
 function AccountView({
     balance,
     margin,
+    positions,
 }: {
     balance?: AccountBalance;
     margin?: Margin;
+    positions: Position[];
 }) {
     const { data: settlements } = usePoll<Settlement[]>(
         useCallback(() => fetchSettlements().catch(() => []), []),
         60000,
     );
+
+    // 資產市值 (issue #1): stock market value net of estimated sell-side
+    // fees/taxes, plus futures equity and the settlement account balance
+    const stockRows = positions.filter(isStockPosition).map((p) => {
+        const sign = p.direction === 'Sell' ? -1 : 1;
+        const gross = p.last_price * p.quantity * 1000;
+        const isEtf = p.code.startsWith('00');
+        const taxRate = isEtf ? 0.001 : 0.003;
+        const net = gross * (1 - 0.001425 - taxRate);
+        return { code: p.code, value: sign * net };
+    });
+    const stockValue = stockRows.reduce((s, r) => s + r.value, 0);
+    const futEquity = margin?.equity ?? 0;
+    const cash = balance?.acc_balance ?? 0;
+    const totalAssets = stockValue + futEquity + cash;
     const items: {
         label: string;
         value: string;
@@ -453,6 +475,18 @@ function AccountView({
         items.push({
             label: '證券交割帳戶 Balance',
             value: fmtMoney(balance.acc_balance),
+        });
+    }
+    if (stockRows.length > 0) {
+        items.push({
+            label: '股票市值（扣稅費估）Stock Value',
+            value: fmtMoney(Math.round(stockValue)),
+        });
+    }
+    if (totalAssets > 0 && (stockRows.length > 0 || margin || balance)) {
+        items.push({
+            label: '資產市值 Total Assets',
+            value: fmtMoney(Math.round(totalAssets)),
         });
     }
     if (margin) {
@@ -504,28 +538,91 @@ function AccountView({
     if (items.length === 0) {
         return <div className={styles.emptyState}>NO ACCOUNT DATA · 無帳務資料</div>;
     }
+    const distSegs = [
+        { label: '證券', value: Math.max(0, stockValue), color: vars.color.accent },
+        { label: '期貨權益', value: Math.max(0, futEquity), color: vars.color.amber },
+        { label: '交割帳戶', value: Math.max(0, cash), color: vars.color.flat },
+    ].filter((s) => s.value > 0);
+    const distTotal = distSegs.reduce((s, d) => s + d.value, 0);
+    const topHoldings = [...stockRows]
+        .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+        .slice(0, 5);
+    const maxHolding = Math.max(1, ...topHoldings.map((h) => Math.abs(h.value)));
     return (
-        <div className={styles.accountGrid}>
-            {items.map((it) => (
-                <div key={it.label} className={styles.statCard}>
-                    <span className={styles.statCardLabel}>{it.label}</span>
-                    <span
-                        className={`${styles.statCardValue} ${it.dir ? panel.dirText[it.dir] : ''}`}
-                        style={
-                            it.tone
-                                ? {
-                                      color:
-                                          it.tone === 'danger'
-                                              ? vars.color.danger
-                                              : vars.color.amber,
-                                  }
-                                : undefined
-                        }
-                    >
-                        {it.value}
-                    </span>
+        <div>
+            <div className={styles.accountGrid}>
+                {items.map((it) => (
+                    <div key={it.label} className={styles.statCard}>
+                        <span className={styles.statCardLabel}>{it.label}</span>
+                        <span
+                            className={`${styles.statCardValue} ${it.dir ? panel.dirText[it.dir] : ''}`}
+                            style={
+                                it.tone
+                                    ? {
+                                          color:
+                                              it.tone === 'danger'
+                                                  ? vars.color.danger
+                                                  : vars.color.amber,
+                                      }
+                                    : undefined
+                            }
+                        >
+                            {it.value}
+                        </span>
+                    </div>
+                ))}
+            </div>
+            {distTotal > 0 && (
+                <div className={styles.distBlock}>
+                    <span className={styles.distTitle}>資產分布</span>
+                    <div className={styles.distBar}>
+                        {distSegs.map((s) => (
+                            <div
+                                key={s.label}
+                                title={`${s.label} ${fmtMoney(Math.round(s.value))}（${((s.value / distTotal) * 100).toFixed(1)}%）`}
+                                style={{
+                                    width: `${(s.value / distTotal) * 100}%`,
+                                    background: s.color,
+                                }}
+                            />
+                        ))}
+                    </div>
+                    <div className={styles.distLegend}>
+                        {distSegs.map((s) => (
+                            <span key={s.label} className={styles.distLegendItem}>
+                                <span
+                                    className={styles.distSwatch}
+                                    style={{ background: s.color }}
+                                />
+                                {s.label}{' '}
+                                {((s.value / distTotal) * 100).toFixed(1)}%
+                            </span>
+                        ))}
+                    </div>
+                    {topHoldings.length > 0 && (
+                        <div className={styles.holdingList}>
+                            {topHoldings.map((h) => (
+                                <div key={h.code} className={styles.holdingRow}>
+                                    <span className={styles.holdingCode}>
+                                        {h.code}
+                                    </span>
+                                    <div className={styles.holdingTrack}>
+                                        <div
+                                            className={styles.holdingFill}
+                                            style={{
+                                                width: `${(Math.abs(h.value) / maxHolding) * 100}%`,
+                                            }}
+                                        />
+                                    </div>
+                                    <span className={styles.holdingValue}>
+                                        {fmtMoney(Math.round(h.value))}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-            ))}
+            )}
         </div>
     );
 }
@@ -630,7 +727,11 @@ export function BottomDock({
                     />
                 )}
                 {tab === 'account' && (
-                    <AccountView balance={balance} margin={margin} />
+                    <AccountView
+                        balance={balance}
+                        margin={margin}
+                        positions={positions}
+                    />
                 )}
             </div>
         </div>

@@ -241,3 +241,90 @@ export const pnlFill = style({
     bottom: 0,
     transition: 'width 0.3s',
 });
+
+// ---- asset distribution (帳務 tab) ----
+
+export const distBlock = style({
+    padding: `${vars.space.sm} ${vars.space.md}`,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: vars.space.xs,
+});
+
+export const distTitle = style({
+    fontFamily: vars.font.display,
+    fontSize: '0.62rem',
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: vars.color.mutedForeground,
+});
+
+export const distBar = style({
+    display: 'flex',
+    height: '10px',
+    borderRadius: '5px',
+    overflow: 'hidden',
+    background: vars.color.muted,
+});
+
+export const distLegend = style({
+    display: 'flex',
+    gap: vars.space.md,
+    fontFamily: vars.font.mono,
+    fontSize: '0.64rem',
+    color: vars.color.mutedForeground,
+    fontVariantNumeric: 'tabular-nums',
+});
+
+export const distLegendItem = style({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+});
+
+export const distSwatch = style({
+    width: '8px',
+    height: '8px',
+    borderRadius: '2px',
+});
+
+export const holdingList = style({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px',
+    marginTop: '2px',
+});
+
+export const holdingRow = style({
+    display: 'grid',
+    gridTemplateColumns: '3.6rem 1fr auto',
+    alignItems: 'center',
+    columnGap: vars.space.sm,
+    fontFamily: vars.font.mono,
+    fontSize: '0.66rem',
+    fontVariantNumeric: 'tabular-nums',
+});
+
+export const holdingCode = style({
+    color: vars.color.foreground,
+    fontWeight: 600,
+});
+
+export const holdingTrack = style({
+    height: '6px',
+    borderRadius: '3px',
+    background: vars.color.muted,
+    overflow: 'hidden',
+});
+
+export const holdingFill = style({
+    height: '100%',
+    borderRadius: '3px',
+    background: vars.color.accent,
+    opacity: 0.7,
+});
+
+export const holdingValue = style({
+    color: vars.color.mutedForeground,
+});

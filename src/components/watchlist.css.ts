@@ -125,6 +125,12 @@ export const listBtn = style({
     ':hover': { color: vars.color.foreground, borderColor: vars.color.borderBright },
 });
 
+export const listBtnOn = style({
+    color: vars.color.accent,
+    borderColor: vars.color.accent,
+    background: vars.color.accentDim,
+});
+
 export const listBtnDanger = style({
     color: '#fff',
     background: vars.color.danger,

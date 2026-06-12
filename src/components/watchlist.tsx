@@ -2,14 +2,26 @@
 // Pick a list, add symbols (type auto-detected), hover a row to remove,
 // drag rows to reorder (persisted to the server).
 
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
 import type { WatchItem } from '../hooks/use-watchlist';
 import type { ServerWatchlist } from '../lib/shioaji';
+import { getQuote } from '../lib/stream';
 import type { ContractInfo } from '../lib/types/contract';
 import { fmtPct, fmtPrice, fmtSigned } from '../lib/utils/format';
 import * as panel from './panel.css';
 import * as styles from './watchlist.css';
+
+type SortMode = 'custom' | 'desc' | 'asc';
+
+// live percent change for sorting — quote first, snapshot fallback
+function pctOf(item: WatchItem): number {
+    const q = getQuote(item.contract.code);
+    const ref = item.contract.reference;
+    const close = q?.tick ? Number(q.tick.close) : item.snapshot?.close;
+    if (close !== undefined && ref) return ((close - ref) / ref) * 100;
+    return item.snapshot?.change_rate ?? 0;
+}
 
 const WatchRow = memo(function WatchRow({
     item,
@@ -141,6 +153,21 @@ export function Watchlist({
     // dragover, before React commits the state update
     const dropCodeRef = useRef<string | null>(null);
     const [dropCode, setDropCode] = useState<string | null>(null);
+    // sort by live percent change (issue #1) — re-sorts every 10s while on
+    const [sortMode, setSortMode] = useState<SortMode>('custom');
+    const [sortTick, setSortTick] = useState(0);
+    useEffect(() => {
+        if (sortMode === 'custom') return;
+        const t = setInterval(() => setSortTick((v) => v + 1), 10000);
+        return () => clearInterval(t);
+    }, [sortMode]);
+    const viewItems = useMemo(() => {
+        if (sortMode === 'custom') return items;
+        const sorted = [...items].sort((a, b) => pctOf(b) - pctOf(a));
+        if (sortMode === 'asc') sorted.reverse();
+        return sorted;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items, sortMode, sortTick]);
     const setDropTarget = (code: string) => {
         dropCodeRef.current = code;
         setDropCode(code);
@@ -221,6 +248,33 @@ export function Watchlist({
                             ))}
                         </select>
                         <button
+                            className={`${styles.listBtn} ${
+                                sortMode !== 'custom' ? styles.listBtnOn : ''
+                            }`}
+                            title={
+                                sortMode === 'custom'
+                                    ? '依漲跌幅排序'
+                                    : sortMode === 'desc'
+                                      ? '漲幅在前 — 點擊改跌幅在前'
+                                      : '跌幅在前 — 點擊回自訂順序'
+                            }
+                            onClick={() =>
+                                setSortMode((m) =>
+                                    m === 'custom'
+                                        ? 'desc'
+                                        : m === 'desc'
+                                          ? 'asc'
+                                          : 'custom',
+                                )
+                            }
+                        >
+                            {sortMode === 'custom'
+                                ? '⇅'
+                                : sortMode === 'desc'
+                                  ? '↓%'
+                                  : '↑%'}
+                        </button>
+                        <button
                             className={styles.listBtn}
                             title='建立新清單'
                             onClick={() => setCreating(true)}
@@ -264,16 +318,22 @@ export function Watchlist({
                             清單是空的 — 在下方輸入代碼加入
                         </div>
                     )}
-                    {items.map((item) => (
+                    {viewItems.map((item) => (
                         <WatchRow
                             key={item.contract.code}
                             item={item}
                             selected={item.contract.code === selectedCode}
-                            dropTarget={item.contract.code === dropCode}
+                            dropTarget={
+                                sortMode === 'custom' &&
+                                item.contract.code === dropCode
+                            }
                             onSelect={onSelect}
                             onRemove={onRemove}
                             onDragStart={(code) => {
-                                dragCode.current = code;
+                                // dragging only reorders the custom order
+                                if (sortMode === 'custom') {
+                                    dragCode.current = code;
+                                }
                             }}
                             onDragOver={setDropTarget}
                             onDrop={handleDrop}

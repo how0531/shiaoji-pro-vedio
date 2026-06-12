@@ -16,7 +16,8 @@ export type BlockType =
     | 'volprofile'
     | 'optchain'
     | 'replay'
-    | 'depthmap';
+    | 'depthmap'
+    | 'combo';
 
 export interface Block {
     id: string;
@@ -127,6 +128,12 @@ export const BLOCK_META: Record<
         pinnable: true,
         singleton: false,
         defaultSize: { w: 8, h: 9, minW: 5, minH: 6 },
+    },
+    combo: {
+        label: '組合單',
+        pinnable: false,
+        singleton: true,
+        defaultSize: { w: 6, h: 14, minW: 5, minH: 10 },
     },
 };
 

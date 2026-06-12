@@ -177,6 +177,14 @@ globalStyle('body', {
     fontFamily: vars.font.body,
 });
 
+// native <option> popups don't inherit the themed select colors on
+// Linux/Windows — without this, dark themes render white-on-white text
+// in every dropdown (issue #1)
+globalStyle('select option', {
+    background: vars.color.panel,
+    color: vars.color.foreground,
+});
+
 globalStyle('::-webkit-scrollbar', { width: '8px', height: '8px' });
 globalStyle('::-webkit-scrollbar-track', { background: 'transparent' });
 globalStyle('::-webkit-scrollbar-thumb', {

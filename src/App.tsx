@@ -20,6 +20,7 @@ import { HudHeader } from './components/hud-header';
 import { OptionChain } from './components/option-chain';
 import { OrderTicket } from './components/order-ticket';
 import { ChipsCard } from './components/chips-card';
+import { ComboTicket } from './components/combo-ticket';
 import { PnlPanel } from './components/pnl-panel';
 import { VolProfile } from './components/vol-profile';
 import { ReplayPanel } from './components/replay-panel';
@@ -28,6 +29,7 @@ import { PanelChrome } from './components/panel-chrome';
 import { QuoteBoard } from './components/quote-board';
 import { ScannerPanel } from './components/scanner-panel';
 import { TickTape } from './components/tick-tape';
+import { TrayPanel } from './components/tray-panel';
 import { Watchlist } from './components/watchlist';
 import * as panel from './components/panel.css';
 import { useHotkeys } from './hooks/use-hotkeys';
@@ -35,7 +37,7 @@ import { usePoll } from './hooks/use-poll';
 import { useWatchlist } from './hooks/use-watchlist';
 import { ensureContract, useContract } from './lib/contracts-cache';
 import { reportDailyPnl } from './lib/risk';
-import { openPopout } from './lib/tauri';
+import { isTauri, openPopout } from './lib/tauri';
 import {
     fetchAccountBalance,
     fetchMargin,
@@ -79,7 +81,7 @@ const POPOUT_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 const popoutQuery = new URLSearchParams(window.location.search);
-const POPOUT_TYPE = popoutQuery.get('popout') as BlockType | null;
+const POPOUT_TYPE = popoutQuery.get('popout');
 const POPOUT_CODE = popoutQuery.get('code') || null;
 
 // resolves a block's contract: pinned code (contract cache) or global selection
@@ -184,6 +186,8 @@ function BlockBody({
             );
         case 'optchain':
             return <OptionChain onPick={onSelectCode} />;
+        case 'combo':
+            return <ComboTicket />;
         case 'replay':
             return contract ? (
                 <ReplayPanel contract={contract} />
@@ -288,6 +292,7 @@ function PopoutView({
     let body: React.ReactNode = <BlockPlaceholder />;
     if (type === 'pnl') body = <PnlPanel />;
     else if (type === 'optchain') body = <OptionChain />;
+    else if (type === 'combo') body = <ComboTicket />;
     else if (contract) {
         switch (type) {
             case 'chart':
@@ -474,6 +479,22 @@ export default function App() {
         [items],
     );
 
+    // tray-panel clicks link the symbol into the main window
+    const selectByCodeRef = useRef(selectByCode);
+    selectByCodeRef.current = selectByCode;
+    useEffect(() => {
+        if (!isTauri) return;
+        let off: (() => void) | undefined;
+        void import('@tauri-apps/api/event').then(({ listen }) =>
+            listen<string>('tray-pick-code', (e) => {
+                if (e.payload) void selectByCodeRef.current(e.payload);
+            }).then((un) => {
+                off = un;
+            }),
+        );
+        return () => off?.();
+    }, []);
+
     const selectedSnapshot = useMemo(
         () => items.find((i) => i.contract.code === selected?.code)?.snapshot,
         [items, selected],
@@ -638,8 +659,13 @@ export default function App() {
 
     const booting = initialLoading;
 
+    if (POPOUT_TYPE === 'traypanel') {
+        return <TrayPanel />;
+    }
     if (POPOUT_TYPE && POPOUT_TYPES.has(POPOUT_TYPE)) {
-        return <PopoutView type={POPOUT_TYPE} code={POPOUT_CODE} />;
+        return (
+            <PopoutView type={POPOUT_TYPE as BlockType} code={POPOUT_CODE} />
+        );
     }
 
     const watchlistProps = {

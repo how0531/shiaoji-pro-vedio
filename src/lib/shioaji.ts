@@ -247,6 +247,58 @@ export function fetchSettlements() {
     );
 }
 
+// ---- combo (spread) orders ----
+
+export interface ComboLeg {
+    action: 'Buy' | 'Sell';
+    security_type: SecurityType;
+    exchange: string | null;
+    code: string;
+    target_code?: string | null;
+}
+
+export interface ComboOrderReq {
+    action: 'Buy' | 'Sell';
+    price: number;
+    quantity: number;
+    price_type: 'LMT' | 'MKT' | 'MKP';
+    order_type: 'ROD' | 'IOC' | 'FOK';
+    octype?: 'Auto' | 'New' | 'Cover' | 'DayTrade';
+}
+
+export interface ComboTrade {
+    contract: { legs: (ComboLeg & { [k: string]: unknown })[] };
+    order: {
+        id: string;
+        seqno: string;
+        action: 'Buy' | 'Sell';
+        price: number;
+        quantity: number;
+    };
+    status: { id: string; status: string; msg?: string; [k: string]: unknown };
+}
+
+export function placeComboOrder(legs: ComboLeg[], order: ComboOrderReq) {
+    const acc = accountFor('F');
+    return apiPost<ComboTrade>('/api/v1/order/place_comboorder', {
+        combo_contract: { legs },
+        order: { ...order, account: acc },
+    });
+}
+
+export function cancelComboOrder(tradeId: string) {
+    return apiPost<ComboTrade>('/api/v1/order/cancel_comboorder', {
+        trade_id: tradeId,
+    });
+}
+
+export function fetchComboTrades() {
+    return apiPost<ComboTrade[]>(
+        '/api/v1/order/combotrades',
+        accountBody('F'),
+    );
+}
+
 // ---- server watchlists ----
 
 export interface ServerWatchlist {

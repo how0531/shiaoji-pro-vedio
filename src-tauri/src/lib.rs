@@ -1,7 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem, MenuItemKind},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
+    Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 
 fn show_main(app: &tauri::AppHandle) {
@@ -10,6 +10,73 @@ fn show_main(app: &tauri::AppHandle) {
         let _ = win.unminimize();
         let _ = win.set_focus();
     }
+}
+
+const TRAY_W: f64 = 380.0;
+const TRAY_H: f64 = 540.0;
+
+// Toggle the compact tray panel anchored at the tray icon (menu-bar app UX:
+// left-click shows quick watchlist/positions, right-click keeps the menu).
+fn toggle_tray_panel(app: &tauri::AppHandle, icon_rect: tauri::Rect) {
+    if let Some(win) = app.get_webview_window("tray") {
+        if win.is_visible().unwrap_or(false) {
+            let _ = win.hide();
+        } else {
+            position_tray_panel(&win, icon_rect);
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+        return;
+    }
+    let win = WebviewWindowBuilder::new(
+        app,
+        "tray",
+        WebviewUrl::App("index.html?popout=traypanel".into()),
+    )
+    .title("Shioaji Pro")
+    .inner_size(TRAY_W, TRAY_H)
+    .decorations(false)
+    .resizable(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .visible(false)
+    .build();
+    if let Ok(win) = win {
+        position_tray_panel(&win, icon_rect);
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+}
+
+fn position_tray_panel(win: &tauri::WebviewWindow, rect: tauri::Rect) {
+    let scale = win.scale_factor().unwrap_or(1.0);
+    let (ix, iy, iw, ih) = match (rect.position, rect.size) {
+        (tauri::Position::Physical(p), tauri::Size::Physical(s)) => {
+            (p.x as f64, p.y as f64, s.width as f64, s.height as f64)
+        }
+        (tauri::Position::Logical(p), tauri::Size::Logical(s)) => (
+            p.x * scale,
+            p.y * scale,
+            s.width * scale,
+            s.height * scale,
+        ),
+        _ => return,
+    };
+    let w = TRAY_W * scale;
+    let x = (ix + iw / 2.0 - w / 2.0).max(8.0);
+    // tray at the top (macOS) → drop below the icon; bottom bars → above
+    let monitor_h = win
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.size().height as f64)
+        .unwrap_or(1080.0);
+    let y = if iy < monitor_h / 2.0 {
+        iy + ih + 6.0
+    } else {
+        iy - TRAY_H * scale - 6.0
+    };
+    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
 }
 
 // Returns `preferred` if it is bindable on 127.0.0.1, otherwise the first
@@ -88,10 +155,11 @@ pub fn run() {
                     if let TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
+                        rect,
                         ..
                     } = event
                     {
-                        show_main(tray.app_handle());
+                        toggle_tray_panel(tray.app_handle(), rect);
                     }
                 });
             if let Some(icon) = app.default_window_icon() {
@@ -135,6 +203,12 @@ pub fn run() {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+            // the tray panel hides itself when it loses focus
+            if window.label() == "tray" {
+                if let tauri::WindowEvent::Focused(false) = event {
                     let _ = window.hide();
                 }
             }
