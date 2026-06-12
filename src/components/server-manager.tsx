@@ -159,17 +159,13 @@ export function ServerManager({
                 }}
                 onClick={() => onToggle(!open)}
             >
-                <span
-                    className={
-                        styles.led[
-                            phase === 'ok'
-                                ? 'live'
-                                : phase === 'down'
-                                  ? 'down'
-                                  : 'connecting'
-                        ]
-                    }
-                />
+                {phase === 'starting' || phase === 'connecting' ? (
+                    <span className={styles.spinner} />
+                ) : (
+                    <span
+                        className={styles.led[phase === 'ok' ? 'live' : 'down']}
+                    />
+                )}
                 {phaseLabel}
             </button>
             {open && (
@@ -200,18 +196,22 @@ export function ServerManager({
                                 </>
                             )}
                             {!status?.running && phase !== 'starting' && '未運行'}
-                            {health && (
-                                <>
-                                    <br />
-                                    token 剩餘{' '}
-                                    {Math.round(
-                                        health.token_expires_in_seconds /
-                                            3600,
-                                    )}
-                                    h · 合約 {health.contract_count}
-                                </>
-                            )}
                         </span>
+                        {(phase === 'starting' ||
+                            (phase === 'connecting' && status?.running)) && (
+                            <span className={styles.progressTrack}>
+                                <span className={styles.progressGlider} />
+                            </span>
+                        )}
+                        {health && (
+                            <span className={styles.emptyHint}>
+                                token 剩餘{' '}
+                                {Math.round(
+                                    health.token_expires_in_seconds / 3600,
+                                )}
+                                h · 合約 {health.contract_count}
+                            </span>
+                        )}
                         <div className={styles.settingGroup}>
                             <button
                                 className={styles.opt.off}

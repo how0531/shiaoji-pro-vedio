@@ -11,14 +11,28 @@ import {
     subscribeTradeEvents,
 } from './shioaji';
 import { isTauri, setApiPort } from './runtime';
+import { onOrderEvent } from './stream';
 import { loadDesktopSettings, serverStart, serverStatus } from './tauri';
-import { notify } from './trade';
+import { logNotice, notify } from './trade';
 
 let booted = false;
 
 export function bootstrap() {
     if (booted) return;
     booted = true;
+    // every order event lands in the 通知中心 log (toasts stay separate)
+    onOrderEvent((ev) => {
+        const deal = ev.code && ev.price !== undefined;
+        logNotice({
+            kind: 'info',
+            title: deal
+                ? `成交 ${ev.code}`
+                : `委託回報 ${ev.contract?.code ?? ''}`,
+            body: deal
+                ? `${ev.action === 'Buy' ? '買' : '賣'} ${ev.quantity} @ ${ev.price}`
+                : `${ev.operation?.op_type ?? ''} ${ev.operation?.op_msg || ev.order?.id?.slice(0, 12) || ''}`,
+        });
+    });
     void run();
 }
 

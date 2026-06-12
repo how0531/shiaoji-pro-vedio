@@ -25,7 +25,40 @@ export function onNotice(listener: (n: AppNotice) => void) {
     };
 }
 
+// ---- persistent notice log (通知中心) ----
+
+export interface LoggedNotice extends AppNotice {
+    ts: number;
+}
+
+const LOG_LIMIT = 200;
+let noticeLog: LoggedNotice[] = [];
+const logListeners = new Set<() => void>();
+
+// record without raising a toast (order events already toast elsewhere)
+export function logNotice(n: AppNotice) {
+    noticeLog = [...noticeLog.slice(-(LOG_LIMIT - 1)), { ...n, ts: Date.now() }];
+    logListeners.forEach((l) => l());
+}
+
+export function subscribeNoticeLog(listener: () => void) {
+    logListeners.add(listener);
+    return () => {
+        logListeners.delete(listener);
+    };
+}
+
+export function getNoticeLog(): LoggedNotice[] {
+    return noticeLog;
+}
+
+export function clearNoticeLog() {
+    noticeLog = [];
+    logListeners.forEach((l) => l());
+}
+
 export function notify(n: AppNotice) {
+    logNotice(n);
     noticeListeners.forEach((l) => l(n));
 }
 

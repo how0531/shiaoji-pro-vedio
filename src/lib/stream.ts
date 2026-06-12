@@ -243,6 +243,10 @@ export function getLastHeartbeat(): number {
     return lastHeartbeat;
 }
 
+export function getSubscriptionCount(): number {
+    return subscriptionRegistry.size;
+}
+
 export function onOrderEvent(listener: (ev: OrderEventData) => void) {
     orderEventListeners.add(listener);
     return () => {

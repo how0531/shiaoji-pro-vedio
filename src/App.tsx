@@ -21,6 +21,8 @@ import { OptionChain } from './components/option-chain';
 import { OrderTicket } from './components/order-ticket';
 import { ChipsCard } from './components/chips-card';
 import { ComboTicket } from './components/combo-ticket';
+import { DebugPanel } from './components/debug-panel';
+import { NoticeCenter } from './components/notice-center';
 import { PnlPanel } from './components/pnl-panel';
 import { VolProfile } from './components/vol-profile';
 import { ReplayPanel } from './components/replay-panel';
@@ -188,6 +190,10 @@ function BlockBody({
             return <OptionChain onPick={onSelectCode} />;
         case 'combo':
             return <ComboTicket />;
+        case 'notices':
+            return <NoticeCenter />;
+        case 'debug':
+            return <DebugPanel />;
         case 'replay':
             return contract ? (
                 <ReplayPanel contract={contract} />

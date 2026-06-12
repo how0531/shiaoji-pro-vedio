@@ -17,7 +17,9 @@ export type BlockType =
     | 'optchain'
     | 'replay'
     | 'depthmap'
-    | 'combo';
+    | 'combo'
+    | 'notices'
+    | 'debug';
 
 export interface Block {
     id: string;
@@ -134,6 +136,18 @@ export const BLOCK_META: Record<
         pinnable: false,
         singleton: true,
         defaultSize: { w: 6, h: 14, minW: 5, minH: 10 },
+    },
+    notices: {
+        label: '通知中心',
+        pinnable: false,
+        singleton: true,
+        defaultSize: { w: 6, h: 10, minW: 4, minH: 6 },
+    },
+    debug: {
+        label: '診斷 Debug',
+        pinnable: false,
+        singleton: true,
+        defaultSize: { w: 6, h: 11, minW: 4, minH: 7 },
     },
 };
 

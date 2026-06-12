@@ -1,6 +1,6 @@
 // src/components/bottom-dock.tsx — positions / orders / account tabs
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePoll } from '../hooks/use-poll';
 import {
     ensureAccounts,
@@ -437,6 +437,87 @@ function isStockPosition(p: Position): boolean {
     return 'yd_quantity' in p;
 }
 
+// 1,234,567 → 123萬；2.3億 — readable at a glance
+function fmtCompact(n: number): string {
+    const abs = Math.abs(n);
+    if (abs >= 1e8) return `${(n / 1e8).toFixed(2)}億`;
+    if (abs >= 1e4) return `${Math.round(n / 1e4).toLocaleString()}萬`;
+    return Math.round(n).toLocaleString();
+}
+
+// resolve a vanilla-extract var(--x) reference to a concrete color
+function cssColor(el: HTMLElement, varRef: string): string {
+    if (!varRef.startsWith('var(')) return varRef;
+    return (
+        getComputedStyle(el).getPropertyValue(varRef.slice(4, -1)).trim() ||
+        '#888'
+    );
+}
+
+// asset-allocation donut: gapped arcs, center shows the total
+function AssetDonut({
+    segs,
+    total,
+}: {
+    segs: { label: string; value: number; color: string }[];
+    total: number;
+}) {
+    const ref = useRef<HTMLCanvasElement>(null);
+    useEffect(() => {
+        const cv = ref.current;
+        if (!cv) return;
+        const size = 148;
+        const dpr = window.devicePixelRatio || 1;
+        cv.width = size * dpr;
+        cv.height = size * dpr;
+        const ctx = cv.getContext('2d');
+        if (!ctx) return;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, size, size);
+        const cx = size / 2;
+        const cy = size / 2;
+        const r = size / 2 - 8;
+        const thick = 15;
+        // background ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = cssColor(cv, vars.color.muted);
+        ctx.lineWidth = thick;
+        ctx.stroke();
+        // segments with small gaps
+        const gap = segs.length > 1 ? 0.06 : 0;
+        let angle = -Math.PI / 2;
+        for (const s of segs) {
+            const sweep = (s.value / total) * Math.PI * 2;
+            if (sweep <= gap * 2) {
+                angle += sweep;
+                continue;
+            }
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, angle + gap, angle + sweep - gap);
+            ctx.strokeStyle = cssColor(cv, s.color);
+            ctx.lineWidth = thick;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            angle += sweep;
+        }
+        // center: total assets
+        ctx.textAlign = 'center';
+        ctx.fillStyle = cssColor(cv, vars.color.mutedForeground);
+        ctx.font = "600 9px 'Inter', sans-serif";
+        ctx.fillText('資產市值', cx, cy - 8);
+        ctx.fillStyle = cssColor(cv, vars.color.foreground);
+        ctx.font = "700 16px 'JetBrains Mono', monospace";
+        ctx.fillText(fmtCompact(total), cx, cy + 10);
+    }, [segs, total]);
+    return (
+        <canvas
+            ref={ref}
+            style={{ width: 148, height: 148, flexShrink: 0 }}
+        />
+    );
+}
+
 function AccountView({
     balance,
     margin,
@@ -575,52 +656,80 @@ function AccountView({
             {distTotal > 0 && (
                 <div className={styles.distBlock}>
                     <span className={styles.distTitle}>資產分布</span>
-                    <div className={styles.distBar}>
-                        {distSegs.map((s) => (
-                            <div
-                                key={s.label}
-                                title={`${s.label} ${fmtMoney(Math.round(s.value))}（${((s.value / distTotal) * 100).toFixed(1)}%）`}
-                                style={{
-                                    width: `${(s.value / distTotal) * 100}%`,
-                                    background: s.color,
-                                }}
-                            />
-                        ))}
-                    </div>
-                    <div className={styles.distLegend}>
-                        {distSegs.map((s) => (
-                            <span key={s.label} className={styles.distLegendItem}>
-                                <span
-                                    className={styles.distSwatch}
-                                    style={{ background: s.color }}
-                                />
-                                {s.label}{' '}
-                                {((s.value / distTotal) * 100).toFixed(1)}%
-                            </span>
-                        ))}
-                    </div>
-                    {topHoldings.length > 0 && (
-                        <div className={styles.holdingList}>
-                            {topHoldings.map((h) => (
-                                <div key={h.code} className={styles.holdingRow}>
-                                    <span className={styles.holdingCode}>
-                                        {h.code}
+                    <div className={styles.distWrap}>
+                        <AssetDonut segs={distSegs} total={distTotal} />
+                        <div className={styles.distDetail}>
+                            {distSegs.map((s) => (
+                                <div key={s.label} className={styles.distRow}>
+                                    <span
+                                        className={styles.distSwatch}
+                                        style={{ background: s.color }}
+                                    />
+                                    <span className={styles.distLabel}>
+                                        {s.label}
                                     </span>
-                                    <div className={styles.holdingTrack}>
-                                        <div
-                                            className={styles.holdingFill}
-                                            style={{
-                                                width: `${(Math.abs(h.value) / maxHolding) * 100}%`,
-                                            }}
-                                        />
-                                    </div>
-                                    <span className={styles.holdingValue}>
-                                        {fmtMoney(Math.round(h.value))}
+                                    <span className={styles.distValue}>
+                                        {fmtMoney(Math.round(s.value))}
+                                    </span>
+                                    <span className={styles.distPct}>
+                                        {((s.value / distTotal) * 100).toFixed(
+                                            1,
+                                        )}
+                                        %
                                     </span>
                                 </div>
                             ))}
+                            {topHoldings.length > 0 && (
+                                <>
+                                    <span className={styles.holdingHead}>
+                                        前五大持股
+                                    </span>
+                                    {topHoldings.map((h) => (
+                                        <div
+                                            key={h.code}
+                                            className={styles.holdingRow}
+                                        >
+                                            <span
+                                                className={styles.holdingCode}
+                                            >
+                                                {h.code}
+                                            </span>
+                                            <div
+                                                className={styles.holdingTrack}
+                                            >
+                                                <div
+                                                    className={
+                                                        styles.holdingFill
+                                                    }
+                                                    style={{
+                                                        width: `${(Math.abs(h.value) / maxHolding) * 100}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                            <span
+                                                className={styles.holdingValue}
+                                            >
+                                                {fmtCompact(h.value)}
+                                            </span>
+                                            <span className={styles.distPct}>
+                                                {(
+                                                    (Math.abs(h.value) /
+                                                        Math.max(
+                                                            1,
+                                                            Math.abs(
+                                                                stockValue,
+                                                            ),
+                                                        )) *
+                                                    100
+                                                ).toFixed(1)}
+                                                %
+                                            </span>
+                                        </div>
+                                    ))}
+                                </>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
         </div>

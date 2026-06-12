@@ -260,49 +260,74 @@ export const distTitle = style({
     color: vars.color.mutedForeground,
 });
 
-export const distBar = style({
+// donut on the left, aligned detail/holdings list on the right
+export const distWrap = style({
     display: 'flex',
-    height: '10px',
-    borderRadius: '5px',
-    overflow: 'hidden',
-    background: vars.color.muted,
+    alignItems: 'center',
+    gap: vars.space.lg,
 });
 
-export const distLegend = style({
+export const distDetail = style({
+    flex: 1,
+    minWidth: 0,
     display: 'flex',
-    gap: vars.space.md,
+    flexDirection: 'column',
+    gap: '4px',
+});
+
+export const distRow = style({
+    display: 'grid',
+    gridTemplateColumns: '10px 5.2rem 1fr 3.2rem',
+    alignItems: 'center',
+    columnGap: vars.space.sm,
     fontFamily: vars.font.mono,
-    fontSize: '0.64rem',
-    color: vars.color.mutedForeground,
+    fontSize: '0.72rem',
     fontVariantNumeric: 'tabular-nums',
 });
 
-export const distLegendItem = style({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '5px',
+export const distLabel = style({
+    fontFamily: vars.font.body,
+    color: vars.color.foreground,
+    fontWeight: 500,
+});
+
+export const distValue = style({
+    textAlign: 'right',
+    color: vars.color.foreground,
+    fontWeight: 600,
+});
+
+export const distPct = style({
+    textAlign: 'right',
+    color: vars.color.mutedForeground,
+    fontSize: '0.66rem',
 });
 
 export const distSwatch = style({
-    width: '8px',
-    height: '8px',
-    borderRadius: '2px',
+    width: '10px',
+    height: '10px',
+    borderRadius: '3px',
 });
 
-export const holdingList = style({
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '3px',
-    marginTop: '2px',
+export const holdingHead = style({
+    fontFamily: vars.font.display,
+    fontSize: '0.6rem',
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: vars.color.mutedForeground,
+    marginTop: '6px',
+    paddingTop: '6px',
+    borderTop: `1px solid ${vars.color.border}`,
 });
 
 export const holdingRow = style({
     display: 'grid',
-    gridTemplateColumns: '3.6rem 1fr auto',
+    gridTemplateColumns: '3.6rem 1fr auto 3.2rem',
     alignItems: 'center',
     columnGap: vars.space.sm,
     fontFamily: vars.font.mono,
-    fontSize: '0.66rem',
+    fontSize: '0.68rem',
     fontVariantNumeric: 'tabular-nums',
 });
 

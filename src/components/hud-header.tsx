@@ -12,7 +12,7 @@ import {
     setRiskSettings,
     useRiskSettings,
 } from '../lib/risk';
-import { fetchHealth, fetchInfo } from '../lib/shioaji';
+import { fetchInfo } from '../lib/shioaji';
 import {
     maskAccountId,
     maskName,
@@ -482,7 +482,6 @@ export function HudHeader({
     const streamStatus = useStreamStatus();
     const [simulation, setSimulation] = useState<boolean | null>(null);
     const [version, setVersion] = useState('');
-    const [contractCount, setContractCount] = useState<number | null>(null);
     const [now, setNow] = useState(() => new Date());
     const [serverMgrOpen, setServerMgrOpen] = useState(false);
 
@@ -505,9 +504,6 @@ export function HudHeader({
                 setVersion(info.version);
             })
             .catch(() => setSimulation(null));
-        fetchHealth()
-            .then((h) => setContractCount(h.contract_count))
-            .catch(() => undefined);
         const t = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(t);
     }, []);
@@ -536,13 +532,6 @@ export function HudHeader({
                 <div className={styles.chip}>
                     <span className={styles.chipLabel}>銀行水位</span>
                     <span>{fmtMoney(accBalance)}</span>
-                </div>
-            )}
-
-            {contractCount !== null && (
-                <div className={styles.chip}>
-                    <span className={styles.chipLabel}>Contracts</span>
-                    <span>{contractCount.toLocaleString()}</span>
                 </div>
             )}
 
