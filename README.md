@@ -65,18 +65,6 @@ AI Agent 為專屬模組，直接到 Releases 下載安裝檔即可使用。
 |------|-------|
 | ![dark](docs/shot-terminal-dark.png) | ![light](docs/shot-terminal-light.png) |
 
-### 功能截圖 Feature Highlights
-
-| 閃電下單 Flash Order | 鋪單 Grid Orders |
-|:---:|:---:|
-| ![閃電下單](docs/shot-flash.png) | ![鋪單](docs/shot-grid.png) |
-| **類股熱力圖 Heatmap** | **選擇權損益圖 Options Payoff** |
-| ![類股熱力圖](docs/shot-heatmap.png) | ![選擇權損益圖](docs/shot-payoff.png) |
-
-| AI Agent — 技能 / 排程 / 觀察學習（桌面版專屬） |
-|:---:|
-| ![AI Agent](docs/shot-agent-skills.png) |
-
 ## Desktop App 桌面版（推薦）
 
 到 [Releases](https://github.com/Sinotrade/shioaji-pro-app/releases) 下載對應平台安裝檔
