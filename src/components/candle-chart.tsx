@@ -1108,25 +1108,30 @@ export function CandleChart({
                         {m.label}
                     </button>
                 ))}
-                <input
-                    className={styles.qtyInput}
-                    value={tradeQty}
-                    inputMode='numeric'
-                    title='下單數量'
-                    onChange={(e) => {
-                        const v = Number(e.target.value);
-                        if (Number.isInteger(v) && v >= 1) setTradeQty(v);
-                    }}
-                />
+                <label
+                    className={styles.qtyWrap}
+                    title='圖表下單數量（點價買賣/停損/停利的口數或張數）'
+                >
+                    量
+                    <input
+                        className={styles.qtyInput}
+                        value={tradeQty}
+                        inputMode='numeric'
+                        onChange={(e) => {
+                            const v = Number(e.target.value);
+                            if (Number.isInteger(v) && v >= 1) setTradeQty(v);
+                        }}
+                    />
+                </label>
                 <button
                     className={
-                        styles.modeBtn[
+                        styles.indicatorBtn[
                             instances.length > 0 ? 'active' : 'normal'
                         ]
                     }
                     onClick={() => setPickerOpen(true)}
                 >
-                    指標{instances.length > 0 ? ` ${instances.length}` : ''}
+                    指標
                 </button>
                 {pickerOpen && (
                     <IndicatorDialog
