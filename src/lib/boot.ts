@@ -12,7 +12,7 @@ import {
 } from './shioaji';
 import { agentModule } from './features';
 import { describeOrderReport } from './order-report';
-import { isTauri, setApiPort } from './runtime';
+import { EXPECTED_SERVER_VERSION, isTauri, setApiPort } from './runtime';
 import { onOrderEvent } from './stream';
 import { loadDesktopSettings, serverStart, serverStatus } from './tauri';
 import { logNotice, notify } from './trade';
@@ -52,7 +52,12 @@ async function run() {
                 const healthyMatch =
                     status?.running &&
                     status.healthy &&
-                    status.simulation === !settings.production;
+                    status.simulation === !settings.production &&
+                    // version handshake — 不接版本不符的 server（例如
+                    // 使用者 8080 上的舊 CLI），改起自帶 sidecar
+                    (EXPECTED_SERVER_VERSION === '' ||
+                        status.version === undefined ||
+                        status.version === EXPECTED_SERVER_VERSION);
                 if (healthyMatch) {
                     // daemon survived from a previous run (possibly on a
                     // non-default port) — make sure the API base follows it

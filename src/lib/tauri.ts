@@ -3,6 +3,7 @@
 
 import {
     DEFAULT_PORT,
+    EXPECTED_SERVER_VERSION,
     LEGACY_PORT,
     getApiPort,
     getServerPid,
@@ -24,6 +25,7 @@ export interface ServerStatus {
     port?: number;
     healthy?: boolean;
     simulation?: boolean;
+    version?: string;
 }
 
 export interface SidecarResult {
@@ -139,6 +141,7 @@ export async function serverStatus(): Promise<ServerStatus | null> {
             port,
             healthy: await probeHealthy(port),
             simulation: info.simulation,
+            version: info.version,
             // only claim a pid for the server we spawned — an attached
             // external server has an unknown pid, and showing our stale
             // record for it is misleading
@@ -288,9 +291,16 @@ export async function serverStart(opts: {
         const modeMismatch =
             st.simulation !== undefined &&
             st.simulation === opts.production;
+        // version handshake: only attach to a server matching the bundled
+        // sidecar version — API/UI 版本必須一致
+        const versionMismatch =
+            EXPECTED_SERVER_VERSION !== '' &&
+            st.version !== undefined &&
+            st.version !== EXPECTED_SERVER_VERSION;
+        const external = getSpawnPort() !== st.port;
         const caOk = !needsCa || (await caActive(st.port));
-        if (st.healthy && !modeMismatch && caOk) {
-            // healthy, right mode, CA live (if needed) — just use it
+        if (st.healthy && !modeMismatch && caOk && !versionMismatch) {
+            // healthy, right mode, right version, CA live — just use it
             return {
                 ok: true,
                 output: `伺服器已在運行（port ${st.port}）`,
@@ -299,29 +309,38 @@ export async function serverStart(opts: {
                 portChanged: setApiPort(st.port),
             };
         }
-        // unhealthy, wrong mode, or CA not active — stop it and start fresh
-        // with the requested settings instead of attaching to a daemon that
-        // can't place orders (v0.1.13 stuck-at-連線中 + the CA-less attach
-        // bug). serverStop kills our remembered pid, so this also works for
-        // the foreground servers the CLI daemon registry never sees.
-        const stopped = await serverStop();
-        if (!stopped.ok && (await probeInfo(st.port))) {
-            // still answering — an external server we can't kill; tell the
-            // user instead of piling a second server onto another port
-            const why = modeMismatch
-                ? '模式與設定不符'
-                : !caOk
-                  ? 'CA 未啟用，正式環境無法下單'
-                  : '狀態不健康';
-            return {
-                ok: false,
-                output:
-                    `:${st.port} 已有一個 shioaji server（${why}），且無法自動停止。\n` +
-                    `${stopped.output}\n停止後再用本 App 啟動以套用設定。`.trim(),
-                port: st.port,
-                attached: false,
-                portChanged: false,
-            };
+        if (versionMismatch && external) {
+            // 使用者自己的 server 版本不符（例如 8080 上的舊 CLI）——
+            // 絕不動它，直接往下走：在別的 port 起自帶 binary
+        } else {
+            // unhealthy, wrong mode/version, or CA not active — stop it and
+            // start fresh with the requested settings instead of attaching
+            // to a daemon that can't serve this build (v0.1.13
+            // stuck-at-連線中 + the CA-less attach bug). serverStop kills
+            // our remembered pid, so this also works for the foreground
+            // servers the CLI daemon registry never sees.
+            const stopped = await serverStop();
+            if (!stopped.ok && (await probeInfo(st.port))) {
+                // still answering — an external server we can't kill; tell
+                // the user instead of piling a second server onto another
+                // port
+                const why = modeMismatch
+                    ? '模式與設定不符'
+                    : versionMismatch
+                      ? `版本不符（server ${st.version}，需 ${EXPECTED_SERVER_VERSION}）`
+                      : !caOk
+                        ? 'CA 未啟用，正式環境無法下單'
+                        : '狀態不健康';
+                return {
+                    ok: false,
+                    output:
+                        `:${st.port} 已有一個 shioaji server（${why}），且無法自動停止。\n` +
+                        `${stopped.output}\n停止後再用本 App 啟動以套用設定。`.trim(),
+                    port: st.port,
+                    attached: false,
+                    portChanged: false,
+                };
+            }
         }
     }
 

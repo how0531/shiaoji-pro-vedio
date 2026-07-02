@@ -34,6 +34,13 @@ export const logoSub = style({
     color: vars.color.mutedForeground,
 });
 
+// server 版本與 app 期望不一致的警示（hover 有完整說明）
+export const versionWarn = style({
+    color: vars.color.amber,
+    fontWeight: 600,
+    cursor: 'help',
+});
+
 export const spacer = style({ flex: 1 });
 
 export const chip = style({

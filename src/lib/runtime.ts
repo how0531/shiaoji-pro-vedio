@@ -12,6 +12,14 @@ export const DEFAULT_PORT = 21322;
 // there, so it stays a probe candidate for attach.
 export const LEGACY_PORT = 8080;
 
+// The server version this build expects（repo 根目錄 SHIOAJI_VERSION，
+// build 時注入；存 '1.5.5' 形式、去掉 v 前綴）。Empty when the define is
+// unavailable（tests）— consumers must treat empty as "don't check".
+export const EXPECTED_SERVER_VERSION: string =
+    typeof __SHIOAJI_SERVER_VERSION__ === 'string'
+        ? __SHIOAJI_SERVER_VERSION__.replace(/^v/, '')
+        : '';
+
 // The shioaji server may run on a non-default port when the preferred one is
 // occupied — the chosen port is persisted here and read by every API/SSE
 // consumer.

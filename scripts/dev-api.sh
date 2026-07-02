@@ -25,6 +25,27 @@ if [ ! -x "$BIN" ]; then
     exit 1
 fi
 
-echo "dev api: $("$BIN" --version | tail -1) on 127.0.0.1:${SJ_DEV_PORT:-21322}"
-exec env SJ_HTTP_ADDR="127.0.0.1:${SJ_DEV_PORT:-21322}" \
+PORT="${SJ_DEV_PORT:-21322}"
+EXPECTED="$(tr -d 'v[:space:]' < SHIOAJI_VERSION)"
+BIN_VER="$("$BIN" --version 2>/dev/null | tail -1 | awk '{print $2}')"
+if [ "$BIN_VER" != "$EXPECTED" ]; then
+    echo "binary version $BIN_VER != SHIOAJI_VERSION $EXPECTED — 換掉 $BIN" >&2
+    exit 1
+fi
+
+# 版本預檢：port 上已有 server 就確認版本 — 相符才沿用，不符直接失敗
+# （絕不默默沿用版本不明的 server）
+RUNNING="$(curl -sf -m 2 "http://127.0.0.1:$PORT/api/v1/info" 2>/dev/null \
+    | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+if [ -n "$RUNNING" ]; then
+    if [ "$RUNNING" = "$EXPECTED" ]; then
+        echo "dev api already running on :$PORT (v$RUNNING, version OK) — reusing"
+        exec tail -f /dev/null # keep the launcher's process alive
+    fi
+    echo ":$PORT 已被 v$RUNNING 佔用（需 v$EXPECTED）— 停掉它或改 SJ_DEV_PORT" >&2
+    exit 1
+fi
+
+echo "dev api: v$BIN_VER on 127.0.0.1:$PORT"
+exec env SJ_HTTP_ADDR="127.0.0.1:$PORT" \
     "$BIN" server start --no-open

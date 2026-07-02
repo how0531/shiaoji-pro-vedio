@@ -5,9 +5,8 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
-env:
-  SHIOAJI_VERSION: v1.5.5
-
+# sidecar 版本的單一來源是 repo 根目錄的 SHIOAJI_VERSION 檔 —
+# app（vite define 版本握手）與這裡的下載步驟都讀同一個檔
 jobs:
   # Create the draft release ONCE before the matrix fans out — when the four
   # build jobs raced to create it, GitHub happily made two releases for the
@@ -94,6 +93,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
             librsvg2-dev patchelf libgtk-3-dev
+
+      - name: Resolve sidecar version (unix)
+        if: matrix.platform != 'windows-latest'
+        run: echo "SHIOAJI_VERSION=$(cat SHIOAJI_VERSION | tr -d '[:space:]')" >> "$GITHUB_ENV"
+
+      - name: Resolve sidecar version (windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: echo "SHIOAJI_VERSION=$((Get-Content SHIOAJI_VERSION -Raw).Trim())" >> $env:GITHUB_ENV
 
       - name: Download shioaji sidecar (unix)
         if: matrix.platform != 'windows-latest'

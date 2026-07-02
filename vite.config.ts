@@ -33,6 +33,16 @@ export default defineConfig(({ mode }) => {
                     process.env.STATSIG_CLIENT_KEY ??
                     '',
             ),
+            // bundled server version（repo 根目錄 SHIOAJI_VERSION —
+            // 與 CI 下載 sidecar 的同一個來源）— app 開機做版本握手
+            __SHIOAJI_SERVER_VERSION__: JSON.stringify(
+                fs
+                    .readFileSync(
+                        path.resolve(__dirname, 'SHIOAJI_VERSION'),
+                        'utf8',
+                    )
+                    .trim(),
+            ),
         },
         plugins: [vanillaExtractPlugin(), react()],
         resolve: {
