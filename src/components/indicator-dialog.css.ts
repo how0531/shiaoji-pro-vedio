@@ -191,6 +191,33 @@ export const rowDesc = style({
     textOverflow: 'ellipsis',
 });
 
+export const customTag = style({
+    display: 'inline-block',
+    fontFamily: vars.font.display,
+    fontSize: '0.56rem',
+    fontWeight: 600,
+    letterSpacing: '0.05em',
+    color: vars.color.accent,
+    background: vars.color.accentDim,
+    borderRadius: '3px',
+    padding: '1px 5px',
+    marginLeft: '6px',
+    verticalAlign: '1px',
+});
+
+export const newCustomBtn = style([
+    sideItemBase,
+    {
+        marginTop: 'auto',
+        color: vars.color.accent,
+        border: `1px dashed ${vars.color.border}`,
+        ':hover': {
+            background: vars.color.accentDim,
+            borderColor: vars.color.accent,
+        },
+    },
+]);
+
 export const rowAdded = style({
     fontFamily: vars.font.mono,
     fontSize: '0.62rem',

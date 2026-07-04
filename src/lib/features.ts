@@ -26,6 +26,12 @@ export interface ClosedModules {
         Panel: React.ComponentType;
         ensureScheduler: () => void;
     };
+    backtest?: {
+        Panel: React.ComponentType<{
+            contract: import('./types/contract').ContractInfo | null;
+            onPick: (code: string) => void;
+        }>;
+    };
 }
 
 export interface FeatureDef {
@@ -43,6 +49,13 @@ export const FEATURES: FeatureDef[] = [
         tier: 'vip',
         closed: true,
         desc: '多供應商 agentic 對話、技能市集、排程任務、操作觀察學習',
+    },
+    {
+        key: 'backtest',
+        name: '策略回測',
+        tier: 'vip',
+        closed: true,
+        desc: '自寫策略（JS + ta 函式庫）、含成本回測引擎、多商品整合績效',
     },
     // 之後要分級的功能（開源或閉源皆可）在這裡加一筆，UI 用
     // <FeatureGate feature='key'> 包起來即可
@@ -135,3 +148,4 @@ export function useFeature(key: string): FeatureState {
 
 // closed module accessors (undefined in open-source builds)
 export const agentModule = closedModules.agent;
+export const backtestModule = closedModules.backtest;

@@ -46,7 +46,7 @@ import { useHotkeys } from './hooks/use-hotkeys';
 import { usePoll } from './hooks/use-poll';
 import { useWatchlist } from './hooks/use-watchlist';
 import { trackActivity } from './lib/activity';
-import { agentModule } from './lib/features';
+import { agentModule, backtestModule } from './lib/features';
 import { ensureContract, useContract } from './lib/contracts-cache';
 import { reportDailyPnl } from './lib/risk';
 import { isTauri, openPopout } from './lib/tauri';
@@ -216,6 +216,16 @@ function BlockBody({
             );
         case 'heatmap':
             return <SectorHeatmap onPick={onSelectCode} />;
+        case 'backtest': {
+            const BtPanel = backtestModule?.Panel;
+            return (
+                <FeatureGate feature='backtest'>
+                    {BtPanel ? (
+                        <BtPanel contract={contract} onPick={onSelectCode} />
+                    ) : null}
+                </FeatureGate>
+            );
+        }
         case 'optpnl':
             return <OptPayoff positions={dockProps.positions} />;
         case 'assistant': {

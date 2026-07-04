@@ -51,6 +51,9 @@ import {
     saveInstances,
     type IndicatorInstance,
 } from '../lib/indicator-defs';
+// side-effect import順序：custom-indicators 在 module 載入時就把已存的
+// 自訂指標註冊進 DEF_BY_TYPE，loadInstances() 的型別過濾才不會把它們丟掉
+import { subscribeCustoms } from '../lib/custom-indicators';
 import type { IndicatorPoint } from '../lib/indicators';
 import { cancelOrder, fetchKbars, updateOrderPrice } from '../lib/shioaji';
 import { setPickedPrice } from '../lib/price-sync';
@@ -641,6 +644,22 @@ export function CandleChart({
         }
     }, [tick, contract.code, tf.minutes]);
 
+    // 自訂指標增刪改 → 重算指標 effect；被刪掉的型別把殘留實例一併清掉
+    const [customVer, setCustomVer] = useState(0);
+    useEffect(
+        () =>
+            subscribeCustoms(() => {
+                setCustomVer((v) => v + 1);
+                setInstances((cur) => {
+                    const kept = cur.filter((i) => DEF_BY_TYPE.has(i.type));
+                    if (kept.length === cur.length) return cur;
+                    saveInstances(kept);
+                    return kept;
+                });
+            }),
+        [],
+    );
+
     // indicator instances → chart series: overlays on the main pane,
     // every oscillator instance in its own sub-pane (lightweight-charts v5)
     const instancesKey = JSON.stringify(instances);
@@ -901,7 +920,7 @@ export function CandleChart({
             paneRoRef.current = null;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dataVersion, instancesKey, themeKey, tf.minutes]);
+    }, [dataVersion, instancesKey, themeKey, tf.minutes, customVer]);
 
     const commitInstances = (list: IndicatorInstance[]) => {
         setInstances(list);

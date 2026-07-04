@@ -17,6 +17,10 @@ import type {
     OrderType,
     StockOrderLot,
 } from '../lib/types/order';
+import {
+    contractMultiplier,
+    futuresTaxRate,
+} from '../lib/utils/contract-cost';
 import { fmtPrice } from '../lib/utils/format';
 import * as panel from './panel.css';
 import * as styles from './order-ticket.css';
@@ -462,44 +466,6 @@ export function OrderTicket({
             )}
         </div>
     );
-}
-
-// fallback only — the API's contract.multiplier is authoritative when > 0
-// (the shioaji server currently reports multiplier 0 for futures, so this
-// table + the underlying-based rules below are the effective path)
-const FUT_MULTIPLIER: Record<string, number> = {
-    TXF: 200,
-    MXF: 50,
-    TMF: 10,
-    EXF: 4000,
-    FXF: 1000,
-};
-
-// TAIFEX 契約單位: 股票期貨 2,000 股/口、ETF 期貨 10,000 受益權單位/口
-// (issue #2: 股票期貨契約價值被算成 價格×50)
-function contractMultiplier(contract: ContractInfo): number {
-    if (contract.multiplier && contract.multiplier > 0) {
-        return contract.multiplier;
-    }
-    const byCategory = FUT_MULTIPLIER[contract.category];
-    if (byCategory) return byCategory;
-    const underlying = contract.underlying_code ?? '';
-    if (contract.underlying_kind === 'E' || underlying.startsWith('00')) {
-        return 10000; // ETF futures
-    }
-    if (contract.underlying_kind === 'S' || underlying) {
-        return 2000; // single-stock futures/options
-    }
-    return 50; // index products default (TXO-style)
-}
-
-// 期交稅率 per product family (per side, on contract value):
-// equity-type futures 0.00002; options 0.001 on premium;
-// gold futures 0.0000025; interest-rate futures 0.00000125
-function futuresTaxRate(category: string): number {
-    if (category === 'GDF' || category === 'TGF') return 0.0000025;
-    if (category === 'GBF') return 0.00000125;
-    return 0.00002;
 }
 
 function CostEstimate({

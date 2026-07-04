@@ -23,6 +23,7 @@ export type BlockType =
     | 'grid'
     | 'heatmap'
     | 'optpnl'
+    | 'backtest'
     | 'assistant';
 
 export interface Block {
@@ -170,6 +171,12 @@ export const BLOCK_META: Record<
         pinnable: false,
         singleton: true,
         defaultSize: { w: 8, h: 13, minW: 6, minH: 9 },
+    },
+    backtest: {
+        label: '策略回測',
+        pinnable: false,
+        singleton: true,
+        defaultSize: { w: 12, h: 14, minW: 8, minH: 8 },
     },
     assistant: {
         label: 'AI Agent',

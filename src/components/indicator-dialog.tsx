@@ -2,8 +2,26 @@
 // (search / category sidebar / favorites / add-in-place) and the
 // per-instance settings modal（輸入 / 樣式 分頁、確定/取消）.
 
-import { ChevronDown, LineChart, Search, Star, Waves, X } from 'lucide-react';
+import {
+    ChevronDown,
+    LineChart,
+    Pencil,
+    Plus,
+    Search,
+    SquareFunction,
+    Star,
+    Waves,
+    X,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    CUSTOM_PREFIX,
+    customType,
+    getCustom,
+    listCustoms,
+    subscribeCustoms,
+    type CustomIndicator,
+} from '../lib/custom-indicators';
 import {
     DEF_BY_TYPE,
     factoryInstance,
@@ -17,6 +35,7 @@ import {
     type OutputStyle,
     type PlotKind,
 } from '../lib/indicator-defs';
+import { CustomIndicatorEditor } from './custom-indicator-editor';
 import * as styles from './indicator-dialog.css';
 
 const WIDTHS: (1 | 2 | 3 | 4)[] = [1, 2, 3, 4];
@@ -53,13 +72,14 @@ export const COLOR_GRID: string[][] = [
     ...[84, 74, 64, 50, 38, 28].map((l) => HUES.map((h) => hslHex(h, 62, l))),
 ];
 
-type Category = 'all' | 'fav' | 'overlay' | 'pane';
+type Category = 'all' | 'fav' | 'overlay' | 'pane' | 'custom';
 
 const CATEGORIES: { key: Category; label: string }[] = [
     { key: 'all', label: '全部指標' },
     { key: 'fav', label: '我的最愛' },
     { key: 'overlay', label: '主圖疊加' },
     { key: 'pane', label: '副圖指標' },
+    { key: 'custom', label: '自訂指標' },
 ];
 
 export function IndicatorDialog({
@@ -74,7 +94,14 @@ export function IndicatorDialog({
     const [query, setQuery] = useState('');
     const [category, setCategory] = useState<Category>('all');
     const [favs, setFavs] = useState<Set<string>>(loadFavorites);
+    // null = 關閉；{ existing: null } = 建立新自訂指標
+    const [editorFor, setEditorFor] = useState<{
+        existing: CustomIndicator | null;
+    } | null>(null);
+    const [, setCustomVer] = useState(0); // 自訂指標增刪改 → 重新渲染列表
     const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => subscribeCustoms(() => setCustomVer((v) => v + 1)), []);
 
     useEffect(() => {
         inputRef.current?.focus();
@@ -110,14 +137,22 @@ export function IndicatorDialog({
         d.desc.toLowerCase().includes(q) ||
         d.aliases.some((a) => a.toLowerCase().includes(q));
 
+    const isCustom = (d: IndicatorDef) => d.type.startsWith(CUSTOM_PREFIX);
+
     const inCategory = (d: IndicatorDef) =>
         category === 'all' ||
         (category === 'fav' && favs.has(d.type)) ||
+        (category === 'custom' && isCustom(d)) ||
         d.category === category;
 
-    const filtered = INDICATOR_DEFS.filter(
-        (d) => matches(d) && inCategory(d),
-    );
+    // 內建 + 自訂（自訂的動態 def 已註冊進 DEF_BY_TYPE）
+    const allDefs = [
+        ...INDICATOR_DEFS,
+        ...listCustoms()
+            .map((c) => DEF_BY_TYPE.get(customType(c.id)))
+            .filter((d): d is IndicatorDef => !!d),
+    ];
+    const filtered = allDefs.filter((d) => matches(d) && inCategory(d));
     const overlays = filtered.filter((d) => d.category === 'overlay');
     const panes = filtered.filter((d) => d.category === 'pane');
 
@@ -134,11 +169,42 @@ export function IndicatorDialog({
                     style={{ background: d.outputs[0]!.color }}
                 />
                 <span className={styles.rowMain}>
-                    <span className={styles.rowName}>{d.label}</span>
+                    <span className={styles.rowName}>
+                        {d.label}
+                        {isCustom(d) && (
+                            <span className={styles.customTag}>自訂</span>
+                        )}
+                    </span>
                     <span className={styles.rowDesc}>{d.desc}</span>
                 </span>
                 {added > 0 && (
                     <span className={styles.rowAdded}>已加入 {added}</span>
+                )}
+                {isCustom(d) && (
+                    <span
+                        role='button'
+                        tabIndex={0}
+                        className={styles.starBtn.normal}
+                        title='編輯自訂指標'
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const c = getCustom(
+                                d.type.slice(CUSTOM_PREFIX.length),
+                            );
+                            if (c) setEditorFor({ existing: c });
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                                const c = getCustom(
+                                    d.type.slice(CUSTOM_PREFIX.length),
+                                );
+                                if (c) setEditorFor({ existing: c });
+                            }
+                        }}
+                    >
+                        <Pencil size={13} />
+                    </span>
                 )}
                 <span
                     role='button'
@@ -220,19 +286,34 @@ export function IndicatorDialog({
                                     <LineChart size={13} />
                                 ) : c.key === 'pane' ? (
                                     <Waves size={13} />
+                                ) : c.key === 'custom' ? (
+                                    <SquareFunction size={13} />
                                 ) : (
                                     <Search size={13} />
                                 )}
                                 {c.label}
                             </button>
                         ))}
+                        <button
+                            className={styles.newCustomBtn}
+                            onClick={() => setEditorFor({ existing: null })}
+                        >
+                            <Plus size={13} />
+                            建立自訂指標
+                        </button>
                     </div>
                     <div className={styles.list}>
-                        {filtered.length === 0 && (
-                            <div className={styles.empty}>
-                                沒有符合「{query}」的指標
-                            </div>
-                        )}
+                        {filtered.length === 0 &&
+                            (category === 'custom' && !q ? (
+                                <div className={styles.empty}>
+                                    還沒有自訂指標 —
+                                    用左下「建立自訂指標」寫你自己的第一個
+                                </div>
+                            ) : (
+                                <div className={styles.empty}>
+                                    沒有符合「{query}」的指標
+                                </div>
+                            ))}
                         {overlays.length > 0 && (
                             <>
                                 <div className={styles.listHeader}>
@@ -256,6 +337,12 @@ export function IndicatorDialog({
                     <span>已啟用 {instances.length} 個</span>
                 </div>
             </div>
+            {editorFor && (
+                <CustomIndicatorEditor
+                    existing={editorFor.existing}
+                    onClose={() => setEditorFor(null)}
+                />
+            )}
         </div>
     );
 }

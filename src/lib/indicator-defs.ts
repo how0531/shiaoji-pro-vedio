@@ -602,12 +602,20 @@ export function loadInstances(): IndicatorInstance[] {
     return migrated;
 }
 
+// 指標實例變更通知（回測面板的 K 線與主圖共用同一份設定）
+const instanceListeners = new Set<() => void>();
+export function subscribeInstances(fn: () => void): () => void {
+    instanceListeners.add(fn);
+    return () => instanceListeners.delete(fn);
+}
+
 export function saveInstances(list: IndicatorInstance[]) {
     try {
         localStorage.setItem(STORE_KEY, JSON.stringify(list));
     } catch {
         // storage full/unavailable — keep in-memory state
     }
+    for (const l of instanceListeners) l();
 }
 
 // ---- favorites（指標選擇器的星號收藏）----
