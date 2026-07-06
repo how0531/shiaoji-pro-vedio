@@ -19,9 +19,43 @@ import { logNotice, notify } from './trade';
 
 let booted = false;
 
+// Windows/WebView2 keyboard-focus self-heal. The native window can be
+// ACTIVE while the webview holds no keyboard focus — mouse keeps working
+// but every keystroke is dropped (對話框打不了字，重啟才會好). Whenever
+// the window reports focus (or the user clicks into the page), check
+// shortly after whether the document really took focus, and hand it back
+// to the webview if not. The hasFocus() guard is what keeps this safe:
+// re-focusing UNCONDITIONALLY on every focus event creates a native
+// focus ping-pong storm that itself kills keyboard input.
+function installKeyboardFocusHeal() {
+    if (!isTauri) return;
+    let pending = 0;
+    const healSoon = () => {
+        if (pending) return;
+        pending = window.setTimeout(() => {
+            pending = 0;
+            if (document.hasFocus()) return;
+            void import('@tauri-apps/api/webview')
+                .then(({ getCurrentWebview }) =>
+                    getCurrentWebview().setFocus(),
+                )
+                .catch(() => undefined);
+        }, 150);
+    };
+    void import('@tauri-apps/api/webviewWindow')
+        .then(({ getCurrentWebviewWindow }) =>
+            getCurrentWebviewWindow().onFocusChanged(({ payload }) => {
+                if (payload) healSoon();
+            }),
+        )
+        .catch(() => undefined);
+    window.addEventListener('pointerdown', healSoon, true);
+}
+
 export function bootstrap() {
     if (booted) return;
     booted = true;
+    installKeyboardFocusHeal();
     // agent scheduled/triggered tasks run for the app's lifetime
     agentModule?.ensureScheduler();
     // every order event lands in the 通知中心 log (toasts stay separate)
