@@ -157,8 +157,12 @@ async function run() {
     // bootstrap watchdog: reload once the server becomes reachable
     try {
         await fetchHealth();
-        void subscribeProductionTradeEvents();
-        return; // server was up at boot — components loaded normally
+        if (await serverVersionOk()) {
+            void subscribeProductionTradeEvents();
+            return; // server was up at boot — components loaded normally
+        }
+        // wrong-version server answering on the persisted port — fall
+        // through to the watchdog: adopt it only after it's replaced
     } catch {
         notify({
             kind: 'info',
@@ -169,12 +173,40 @@ async function run() {
     const timer = setInterval(async () => {
         try {
             await fetchHealth();
+            if (!(await serverVersionOk())) return; // warned; keep waiting
             clearInterval(timer);
             window.location.reload();
         } catch {
             // keep waiting
         }
     }, 4000);
+}
+
+// Health alone must not adopt a server: the persisted port key can be stale,
+// and whatever answers there (e.g. an old CLI daemon someone started on 8080)
+// would silently hijack every panel — the serverStart/autoStart version
+// handshakes never run on this passive path. Desktop-only: the web build is
+// served by the very server it talks to, so there's nothing to cross-check.
+let versionWarned = false;
+async function serverVersionOk(): Promise<boolean> {
+    if (!isTauri || EXPECTED_SERVER_VERSION === '') return true;
+    try {
+        const info = await fetchInfo();
+        if (!info.version || info.version === EXPECTED_SERVER_VERSION) {
+            return true;
+        }
+        if (!versionWarned) {
+            versionWarned = true;
+            notify({
+                kind: 'err',
+                title: '伺服器版本不符，未採用',
+                body: `port 上的 server 是 ${info.version}，本版需要 ${EXPECTED_SERVER_VERSION}——請停掉它，或到「伺服器」面板重新啟動`,
+            });
+        }
+        return false;
+    } catch {
+        return false; // /info unreachable — transient; keep waiting
+    }
 }
 
 // In production the order_event SSE stream only emits heartbeats until

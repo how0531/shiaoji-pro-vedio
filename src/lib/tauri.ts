@@ -283,6 +283,9 @@ export async function serverStart(opts: {
                 port,
                 healthy: await probeHealthy(port),
                 simulation: infos[hit]?.simulation,
+                // without this the versionMismatch check below sees
+                // undefined and adopts an old-version orphan
+                version: infos[hit]?.version,
                 pid: getServerPid() ?? undefined,
             };
         }
