@@ -15,6 +15,17 @@ export const shell = style({
     zIndex: 1000,
 });
 
+// row of [setup card, agent side-panel] — wraps to a single column narrow
+// viewport since the agent panel needs real width to be usable
+export const layout = style({
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    gap: vars.space.lg,
+    maxWidth: '92vw',
+});
+
 export const card = style({
     display: 'flex',
     flexDirection: 'column',
@@ -25,6 +36,36 @@ export const card = style({
     borderRadius: vars.radius.lg,
     boxShadow: '0 24px 64px rgba(0, 0, 0, 0.45)',
     padding: vars.space.xl,
+});
+
+export const agentCard = style({
+    display: 'flex',
+    flexDirection: 'column',
+    width: 'min(24rem, 92vw)',
+    height: 'min(38rem, 86vh)',
+    background: vars.color.panelRaised,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.lg,
+    boxShadow: '0 24px 64px rgba(0, 0, 0, 0.45)',
+    overflow: 'hidden',
+});
+
+export const agentHeader = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontFamily: vars.font.display,
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    color: vars.color.foreground,
+    padding: `${vars.space.sm} ${vars.space.md}`,
+    borderBottom: `1px solid ${vars.color.border}`,
+    flexShrink: 0,
+});
+
+export const agentBody = style({
+    flex: 1,
+    minHeight: 0,
 });
 
 export const logo = style({

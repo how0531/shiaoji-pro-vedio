@@ -23,7 +23,7 @@ export interface ClosedModules {
     // service has no opinion → fall back to the tier rule below.
     checkFeature?: (key: string) => boolean | undefined;
     agent?: {
-        Panel: React.ComponentType;
+        Panel: React.ComponentType<{ initialPrompt?: string }>;
         ensureScheduler: () => void;
     };
     backtest?: {
