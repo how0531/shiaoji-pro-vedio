@@ -5,6 +5,8 @@ import {
     Clipboard,
     Eye,
     EyeOff,
+    FileUp,
+    LogOut,
     Play,
     RefreshCw,
     RotateCcw,
@@ -27,6 +29,7 @@ import {
     isTauri,
     loadDesktopSettings,
     pickCaFile,
+    pickEnvFile,
     reloadWhenHealthy,
     saveDesktopSettings,
     serverStart,
@@ -61,6 +64,8 @@ export function ServerManager({
     const [checking, setChecking] = useState(false);
     const [readyLines, setReadyLines] = useState<string[]>([]);
     const [showPw, setShowPw] = useState(false);
+    const [confirmLogout, setConfirmLogout] = useState(false);
+    const [envMsg, setEnvMsg] = useState('');
 
     // human-readable CA activation failure pulled from the latest start log
     // (the server starts even when CA fails, so this is how the user learns
@@ -158,6 +163,31 @@ export function ServerManager({
         const merged = { ...settings, ...next };
         setSettings(merged);
         void saveDesktopSettings(merged);
+    };
+
+    const importEnv = async () => {
+        const found = await pickEnvFile();
+        if (!found) return; // dialog cancelled
+        if (!found.apiKey && !found.secretKey) {
+            setEnvMsg('該檔案裡沒有找到 SJ_API_KEY / SJ_SEC_KEY');
+            return;
+        }
+        setEnvMsg('');
+        persist(found);
+    };
+
+    // clears the saved API Key/Secret so the app falls back to the first-run
+    // onboarding screen on next reload — the only way back to it today
+    // (two-click confirm mirrors watchlist.tsx's delete-list pattern)
+    const doLogout = () => {
+        if (!confirmLogout) {
+            setConfirmLogout(true);
+            setTimeout(() => setConfirmLogout(false), 2500);
+            return;
+        }
+        setConfirmLogout(false);
+        void saveDesktopSettings({ ...settings, apiKey: '', secretKey: '' })
+            .then(() => window.location.reload());
     };
 
     // after a (re)start the upstream subscriptions are gone — reload the UI
@@ -406,6 +436,29 @@ export function ServerManager({
                                 persist({ secretKey: e.target.value })
                             }
                         />
+                        <button className={styles.updateBtn} onClick={importEnv}>
+                            <FileUp size={13} />
+                            從 .env 檔案匯入
+                        </button>
+                        {envMsg && (
+                            <span
+                                className={styles.emptyHint}
+                                style={{ color: 'var(--danger, #f23645)' }}
+                            >
+                                {envMsg}
+                            </span>
+                        )}
+                        <button
+                            className={
+                                confirmLogout
+                                    ? styles.killBtnOn
+                                    : styles.killBtnOff
+                            }
+                            onClick={doLogout}
+                        >
+                            <LogOut size={13} />
+                            {confirmLogout ? '再按一次確認登出' : '登出（清除 API 金鑰）'}
+                        </button>
 
                         <span className={styles.settingLabel}>環境</span>
                         <div className={styles.settingGroup}>

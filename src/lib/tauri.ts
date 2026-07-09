@@ -555,6 +555,55 @@ export async function pickCaFile(): Promise<string | null> {
     return typeof file === 'string' ? file : null;
 }
 
+// parses simple KEY=value / KEY="value" / export KEY=value lines — good
+// enough for a hand-written .env, doesn't need full dotenv semantics
+// (multiline values, ${VAR} expansion) for just pulling out two keys
+function parseEnvKeys(
+    text: string,
+): { apiKey?: string; secretKey?: string } {
+    const out: { apiKey?: string; secretKey?: string } = {};
+    for (const raw of text.split(/\r?\n/)) {
+        const line = raw.trim();
+        if (!line || line.startsWith('#')) continue;
+        const m = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(
+            line,
+        );
+        if (!m) continue;
+        const key = m[1];
+        let val = (m[2] ?? '').trim();
+        if (
+            (val.startsWith('"') && val.endsWith('"')) ||
+            (val.startsWith("'") && val.endsWith("'"))
+        ) {
+            val = val.slice(1, -1);
+        }
+        if (key === 'SJ_API_KEY') out.apiKey = val;
+        if (key === 'SJ_SEC_KEY') out.secretKey = val;
+    }
+    return out;
+}
+
+// lets the user pick a .env file (e.g. from a shioaji project checkout)
+// and pulls SJ_API_KEY/SJ_SEC_KEY straight out of it — no extension filter
+// since ".env" has no conventional extension and dialog filters are
+// unreliable for dotfiles across platforms
+export async function pickEnvFile(): Promise<{
+    apiKey?: string;
+    secretKey?: string;
+} | null> {
+    if (!isTauri) return null;
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const path = await open({
+        multiple: false,
+        directory: false,
+        title: '選擇 .env 檔案（讀取 SJ_API_KEY / SJ_SEC_KEY）',
+    });
+    if (typeof path !== 'string') return null;
+    const { readTextFile } = await import('@tauri-apps/plugin-fs');
+    const text = await readTextFile(path);
+    return parseEnvKeys(text);
+}
+
 // ---- popout windows ----
 
 let popoutCounter = 0;

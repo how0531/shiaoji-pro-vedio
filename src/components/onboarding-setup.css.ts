@@ -182,6 +182,21 @@ export const caPickBtn = style([
     { flex: 1, textAlign: 'left', fontWeight: 400 },
 ]);
 
+export const importBtn = style([
+    modeBtnBase,
+    {
+        flex: 'none', // modeBtnBase's flex:1 is for the side-by-side 模擬/正式
+        // row — without this override the button stretches to fill the
+        // card's remaining column height when used standalone
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '6px',
+        fontWeight: 500,
+        borderStyle: 'dashed',
+    },
+]);
+
 export const hint = style({
     fontFamily: vars.font.body,
     fontSize: '0.68rem',

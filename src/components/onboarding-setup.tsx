@@ -3,7 +3,7 @@
 // never lands on a dashboard that only *looks* empty-but-fine while the
 // server was never even asked to start (see App.tsx's AppGate).
 
-import { Bot, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Bot, Eye, EyeOff, FileUp, KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { agentModule } from '../lib/features';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../lib/server-diagnostics';
 import {
     pickCaFile,
+    pickEnvFile,
     reloadWhenHealthy,
     saveDesktopSettings,
     serverStart,
@@ -46,6 +47,17 @@ export function OnboardingSetup() {
 
     const patch = (next: Partial<DesktopSettings>) =>
         setSettings((s) => ({ ...s, ...next }));
+
+    const importEnv = async () => {
+        const found = await pickEnvFile();
+        if (!found) return; // dialog cancelled
+        if (!found.apiKey && !found.secretKey) {
+            setError('該檔案裡沒有找到 SJ_API_KEY / SJ_SEC_KEY');
+            return;
+        }
+        setError('');
+        patch(found);
+    };
 
     const submit = async () => {
         const err = validateDesktopSettings(settings);
@@ -94,6 +106,16 @@ export function OnboardingSetup() {
                             填入永豐 API 金鑰以啟動交易伺服器
                         </div>
                     </div>
+
+                    <button
+                        className={styles.importBtn}
+                        type='button'
+                        disabled={busy}
+                        onClick={importEnv}
+                    >
+                        <FileUp size={13} />
+                        從 .env 檔案匯入
+                    </button>
 
                     <div className={styles.fieldGroup}>
                         <span className={styles.label}>API KEY</span>
