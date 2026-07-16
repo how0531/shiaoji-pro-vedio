@@ -17,13 +17,17 @@ export function contractMultiplier(contract: ContractInfo): number {
     if (contract.multiplier && contract.multiplier > 0) {
         return contract.multiplier;
     }
-    const byCategory = FUT_MULTIPLIER[contract.category];
-    if (byCategory) return byCategory;
+    const root = contract.root ?? contract.category;
+    const byRoot = FUT_MULTIPLIER[root];
+    if (byRoot) return byRoot;
     const underlying = contract.underlying_code ?? '';
-    if (contract.underlying_kind === 'E' || underlying.startsWith('00')) {
+    if (contract.spec_kind === 'etf_fut' || underlying.startsWith('00')) {
         return 10000; // ETF futures
     }
-    if (contract.underlying_kind === 'S' || underlying) {
+    if (
+        contract.spec_kind === 'stock_fut' ||
+        contract.underlying_kind === 'S'
+    ) {
         return 2000; // single-stock futures/options
     }
     return 50; // index products default (TXO-style)
@@ -32,16 +36,24 @@ export function contractMultiplier(contract: ContractInfo): number {
 // 期交稅率 per product family (per side, on contract value):
 // equity-type futures 0.00002; options 0.001 on premium;
 // gold futures 0.0000025; interest-rate futures 0.00000125
-export function futuresTaxRate(category: string): number {
-    if (category === 'GDF' || category === 'TGF') return 0.0000025;
-    if (category === 'GBF') return 0.00000125;
+export function futuresTaxRate(contract: ContractInfo | string): number {
+    const root =
+        typeof contract === 'string'
+            ? contract
+            : (contract.root ?? contract.category);
+    if (root === 'GDF' || root === 'TGF') return 0.0000025;
+    if (root === 'GBF') return 0.00000125;
     return 0.00002;
 }
 
-// 股票證交稅（賣出）：一般 0.3%、ETF 0.1%
+// 證交稅（賣出）：一般股票 0.3%、ETF 與權證 0.1%
 export function stockTaxRate(contract: ContractInfo): number {
     const code = contract.code;
-    if (code.startsWith('00') || contract.underlying_kind === 'E') {
+    if (
+        contract.security_type === 'WRT' ||
+        code.startsWith('00') ||
+        contract.underlying_kind === 'E'
+    ) {
         return 0.001;
     }
     return 0.003;

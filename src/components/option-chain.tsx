@@ -4,25 +4,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuote } from '../hooks/use-stream';
-import { apiPost } from '../lib/api';
 import { pickOptionLeg } from '../lib/option-pick';
-import { fetchSnapshots } from '../lib/shioaji';
+import { fetchOptions, fetchSnapshots } from '../lib/shioaji';
+import type { ContractInfo } from '../lib/types/contract';
 import type { Snapshot } from '../lib/types/market';
 import { fmtPrice, fmtSigned } from '../lib/utils/format';
 import * as dock from './bottom-dock.css';
 import * as panel from './panel.css';
 import * as styles from './option-chain.css';
 
-interface OptContract {
-    code: string;
-    exchange: string;
-    security_type: string;
-    category: string;
+interface OptContract extends ContractInfo {
     delivery_month: string;
     delivery_date: string;
     strike_price: number;
     option_right: string;
-    reference: number;
 }
 
 let optCache: OptContract[] | null = null;
@@ -32,11 +27,15 @@ async function loadTxo(): Promise<OptContract[]> {
     if (optCache) return optCache;
     if (optLoading) return optLoading;
     optLoading = (async () => {
-        const res = await apiPost<{ contracts: OptContract[] }>(
-            '/api/v1/data/contracts',
-            { security_type: 'OPT', page: -1 },
+        const rows = await fetchOptions('TXO');
+        optCache = rows.filter(
+            (c): c is OptContract =>
+                c.security_type === 'OPT' &&
+                typeof c.delivery_month === 'string' &&
+                typeof c.delivery_date === 'string' &&
+                typeof c.strike_price === 'number' &&
+                typeof c.option_right === 'string',
         );
-        optCache = res.contracts.filter((c) => c.category === 'TXO');
         return optCache;
     })();
     return optLoading;
@@ -132,9 +131,10 @@ export function OptionChain({
             .filter((c): c is OptContract => !!c)
             .map((c) => ({
                 security_type: 'OPT' as const,
-                exchange: 'TAIFEX' as const,
+                exchange: c.exchange,
                 code: c.code,
                 target_code: null,
+                region: c.region,
             }));
         try {
             const result = await fetchSnapshots(targets);

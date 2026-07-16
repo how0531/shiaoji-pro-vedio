@@ -94,6 +94,9 @@ export async function placeQuickOrder(
     opts?: { bypassRisk?: boolean; orderLot?: StockOrderLot },
 ): Promise<Trade> {
     assertTradingLive();
+    if (contract.security_type === 'IND') {
+        throw new Error('指數商品僅提供行情，不可下單');
+    }
     if (!opts?.bypassRisk) {
         const blocked = checkOrderAllowed(quantity);
         if (blocked) throw new Error(blocked);
@@ -114,6 +117,9 @@ async function sendOrder(
     market: boolean,
     orderLot?: StockOrderLot,
 ): Promise<Trade> {
+    if (contract.security_type === 'IND') {
+        throw new Error('指數商品僅提供行情，不可下單');
+    }
     const trade = isFuturesContract(contract)
         ? await placeFuturesOrder(contract, {
               action,

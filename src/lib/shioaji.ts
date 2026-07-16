@@ -30,6 +30,7 @@ import type {
     StockPosition,
 } from './types/portfolio';
 import { registerSubscription } from './stream';
+import { unregisterSubscription } from './stream';
 import type { HistoryTicks } from './types/tick';
 import { todayStr } from './utils/date';
 
@@ -44,8 +45,10 @@ export interface ServerInfo {
 function contractKey(c: ContractBase) {
     return {
         security_type: c.security_type,
+        region: c.region ?? 'TW',
         exchange: c.exchange,
         code: c.code,
+        target_code: c.target_code || null,
     };
 }
 
@@ -85,13 +88,220 @@ export function subscribeTradeEvents(account: {
 
 // ---- contracts ----
 
+const LEGACY_INDEX_CODES: Record<string, string> = {
+    '001': 'IX0001',
+    '015': 'IX0010',
+    '016': 'IX0011',
+    '017': 'IX0012',
+    '018': 'IX0016',
+    '019': 'IX0017',
+    '020': 'IX0018',
+    '021': 'IX0021',
+    '022': 'IX0022',
+    '023': 'IX0023',
+    '024': 'IX0024',
+    '025': 'IX0025',
+    '026': 'IX0026',
+    '028': 'IX0036',
+    '029': 'IX0037',
+    '030': 'IX0038',
+    '031': 'IX0039',
+    '032': 'IX0040',
+    '035': 'IX0041',
+    '036': 'IX0028',
+    '037': 'IX0029',
+    '038': 'IX0030',
+    '039': 'IX0031',
+    '040': 'IX0032',
+    '041': 'IX0033',
+    '042': 'IX0034',
+    '043': 'IX0035',
+};
+
+export function normalizeContractCode(
+    code: string,
+    securityType?: SecurityType,
+) {
+    const normalized = code.trim().toUpperCase();
+    return securityType === 'IND'
+        ? (LEGACY_INDEX_CODES[normalized] ?? normalized)
+        : normalized;
+}
+
+export interface ContractsQueryResponse {
+    contracts: ContractBase[];
+    security_type: Exclude<SecurityType, null>;
+    region: string;
+    total: number;
+    page?: number;
+    page_size?: number;
+    max_page?: number;
+}
+
+export interface ContractRoot {
+    root: string;
+    name: string;
+}
+
+export interface WarrantUnderlying {
+    underlying_code: string;
+    name?: string | null;
+    warrant_count?: number;
+}
+
+function contractQuery(params: Record<string, string | number | undefined>) {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== '') qs.set(key, String(value));
+    }
+    return qs.size ? `?${qs.toString()}` : '';
+}
+
+export function fetchContractBase(code: string, securityType?: SecurityType) {
+    const normalized = normalizeContractCode(code, securityType);
+    return apiGet<ContractBase>(
+        `/api/v1/data/contracts/${encodeURIComponent(normalized)}${contractQuery({
+            security_type: securityType ?? undefined,
+            region: 'TW',
+        })}`,
+    );
+}
+
+export function fetchContractInfo(code: string, securityType?: SecurityType) {
+    const normalized = normalizeContractCode(code, securityType);
+    return apiGet<ContractInfo>(
+        `/api/v1/data/contracts/${encodeURIComponent(normalized)}/info${contractQuery({
+            security_type: securityType ?? undefined,
+            region: 'TW',
+        })}`,
+    );
+}
+
 export function fetchContract(
     code: string,
     securityType: SecurityType = 'STK',
 ) {
-    const qs = new URLSearchParams({ security_type: securityType ?? '' });
-    return apiGet<ContractInfo>(
-        `/api/v1/data/contracts/${encodeURIComponent(code)}?${qs.toString()}`,
+    return fetchContractInfo(code, securityType);
+}
+
+export async function resolveContract(
+    code: string,
+    securityType?: SecurityType,
+): Promise<ContractInfo> {
+    const base = await fetchContractBase(code, securityType);
+    if (base.security_type === 'WRT') {
+        // Warrant info is sharded by underlying and cannot be fetched from
+        // /{code}/info. A later warrant search can prime the full record.
+        return {
+            ...base,
+            name: base.code,
+            currency: 'TWD',
+            reference: 0,
+            limit_up: 0,
+            limit_down: 0,
+            day_trade: '',
+            update_date: '',
+            category: '',
+            margin_trading_balance: 0,
+            short_selling_balance: 0,
+        };
+    }
+    return fetchContractInfo(base.code, base.security_type);
+}
+
+export function fetchContracts(
+    securityType: Exclude<SecurityType, null>,
+    page?: number,
+    pageSize?: number,
+) {
+    return apiGet<ContractsQueryResponse>(
+        `/api/v1/data/contracts${contractQuery({
+            security_type: securityType,
+            region: 'TW',
+            page,
+            page_size: pageSize,
+        })}`,
+    );
+}
+
+export function fetchFutures(filters: {
+    root?: string;
+    underlyingCode?: string;
+    deliveryMonth?: string;
+} = {}) {
+    return apiGet<ContractInfo[]>(
+        `/api/v1/data/contracts/futures${contractQuery({
+            root: filters.root,
+            underlying_code: filters.underlyingCode,
+            delivery_month: filters.deliveryMonth,
+            region: 'TW',
+        })}`,
+    );
+}
+
+export function fetchFuturesRoots() {
+    return apiGet<ContractRoot[]>(
+        '/api/v1/data/contracts/futures/roots?region=TW',
+    );
+}
+
+export function fetchOptions(
+    root: string,
+    filters: {
+        deliveryMonth?: string;
+        optionRight?: 'C' | 'P';
+        strikeMin?: number;
+        strikeMax?: number;
+        expiryWeekday?: string;
+    } = {},
+) {
+    return apiGet<ContractInfo[]>(
+        `/api/v1/data/contracts/options${contractQuery({
+            root,
+            delivery_month: filters.deliveryMonth,
+            option_right: filters.optionRight,
+            strike_min: filters.strikeMin,
+            strike_max: filters.strikeMax,
+            expiry_weekday: filters.expiryWeekday,
+            region: 'TW',
+        })}`,
+    );
+}
+
+export function fetchOptionRoots() {
+    return apiGet<ContractRoot[]>(
+        '/api/v1/data/contracts/options/roots?region=TW',
+    );
+}
+
+export function fetchWarrants(
+    underlyingCode: string,
+    filters: {
+        code?: string;
+        callPut?: 'C' | 'P';
+        strikeMin?: number;
+        strikeMax?: number;
+        expiryFrom?: string;
+        expiryTo?: string;
+    } = {},
+) {
+    return apiGet<ContractInfo[]>(
+        `/api/v1/data/contracts/warrants${contractQuery({
+            underlying_code: underlyingCode,
+            code: filters.code,
+            call_put: filters.callPut,
+            strike_min: filters.strikeMin,
+            strike_max: filters.strikeMax,
+            expiry_from: filters.expiryFrom,
+            expiry_to: filters.expiryTo,
+            region: 'TW',
+        })}`,
+    );
+}
+
+export function fetchWarrantUnderlyings() {
+    return apiGet<WarrantUnderlying[]>(
+        '/api/v1/data/contracts/warrants/underlyings?region=TW&include_name=true',
     );
 }
 
@@ -157,8 +367,15 @@ export function subscribeQuote(
         quote_type: quoteType,
         intraday_odd: false,
     };
-    registerSubscription(body);
-    return apiPost<SubscriptionResponse>('/api/v1/stream/subscribe', body);
+    return apiPost<SubscriptionResponse>('/api/v1/stream/subscribe', body).then(
+        (response) => {
+            if (!response.success) {
+                throw new Error(response.message || '行情訂閱失敗');
+            }
+            registerSubscription(body);
+            return response;
+        },
+    );
 }
 
 export function unsubscribeQuote(
@@ -167,10 +384,23 @@ export function unsubscribeQuote(
 ) {
     return apiPost<SubscriptionResponse>('/api/v1/stream/unsubscribe', {
         ...contractKey(contract),
-        target_code: contract.target_code || null,
         quote_type: quoteType,
         intraday_odd: false,
+    }).then((response) => {
+        if (!response.success) {
+            throw new Error(response.message || '取消行情訂閱失敗');
+        }
+        unregisterSubscription(contract.code, quoteType);
+        return response;
     });
+}
+
+export function subscribeContractQuotes(contract: ContractBase) {
+    const quoteTypes: QuoteTypeName[] =
+        contract.security_type === 'IND' ? ['Quote'] : ['Tick', 'BidAsk'];
+    return Promise.allSettled(
+        quoteTypes.map((quoteType) => subscribeQuote(contract, quoteType)),
+    );
 }
 
 // ---- orders ----
@@ -377,6 +607,18 @@ export function createWatchlist(
 
 export function syncWatchlist(id: string, contracts: ContractBase[]) {
     return apiPut<ServerWatchlist>(`/api/v1/watchlist/${id}`, {
+        contracts: contracts.map(contractKey),
+    });
+}
+
+export function addWatchlistContracts(id: string, contracts: ContractBase[]) {
+    return apiPost<ServerWatchlist>(`/api/v1/watchlist/${id}/contracts`, {
+        contracts: contracts.map(contractKey),
+    });
+}
+
+export function removeWatchlistContracts(id: string, contracts: ContractBase[]) {
+    return apiDelete<ServerWatchlist>(`/api/v1/watchlist/${id}/contracts`, {
         contracts: contracts.map(contractKey),
     });
 }

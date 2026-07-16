@@ -50,6 +50,56 @@ export const hint = style({
     justifyContent: 'space-between',
 });
 
+export const results = style({
+    maxHeight: '18rem',
+    overflowY: 'auto',
+    borderBottom: `1px solid ${vars.color.border}`,
+});
+
+const resultBase = {
+    width: '100%',
+    minHeight: '2.4rem',
+    display: 'grid',
+    gridTemplateColumns: '5.5rem minmax(0, 1fr) auto',
+    alignItems: 'center',
+    gap: vars.space.sm,
+    padding: `${vars.space.xs} ${vars.space.lg}`,
+    border: 'none',
+    color: vars.color.foreground,
+    textAlign: 'left' as const,
+    cursor: 'pointer',
+};
+
+export const result = style({
+    ...resultBase,
+    background: 'transparent',
+});
+
+export const resultActive = style({
+    ...resultBase,
+    background: vars.color.accent,
+});
+
+export const resultCode = style({
+    fontFamily: vars.font.mono,
+    fontWeight: 700,
+    fontSize: '0.76rem',
+});
+
+export const resultName = style({
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.76rem',
+});
+
+export const resultType = style({
+    color: vars.color.mutedForeground,
+    fontSize: '0.65rem',
+    whiteSpace: 'nowrap',
+});
+
 export const err = style({
     color: vars.color.danger,
 });

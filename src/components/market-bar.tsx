@@ -1,9 +1,10 @@
 // src/components/market-bar.tsx — index / futures basis strip in the header
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { usePoll } from '../hooks/use-poll';
 import { useQuote } from '../hooks/use-stream';
 import { fetchSnapshots } from '../lib/shioaji';
+import { ensureContract } from '../lib/contracts-cache';
 import type { Snapshot } from '../lib/types/market';
 import { fmtPct, fmtPrice, fmtSigned } from '../lib/utils/format';
 import * as panel from './panel.css';
@@ -12,7 +13,7 @@ import * as styles from './hud-header.css';
 const TSE_INDEX = {
     security_type: 'IND' as const,
     exchange: 'TSE' as const,
-    code: '001',
+    code: 'IX0001',
     target_code: null,
 };
 const TXF = {
@@ -27,19 +28,49 @@ export function MarketBar() {
         useCallback(() => fetchSnapshots([TSE_INDEX, TXF]), []),
         10000,
     );
+    const indexLive = useQuote('IX0001');
     const txfLive = useQuote('TXFR1');
 
-    const index = data?.find((s) => s.code === '001');
-    const txfSnap = data?.find((s) => s.code !== '001');
+    useEffect(() => {
+        void Promise.allSettled([
+            ensureContract('IX0001', 'IND'),
+            ensureContract('TXFR1', 'FUT'),
+        ]);
+    }, []);
+
+    const indexSnap = data?.find((s) => s.code === 'IX0001');
+    const txfSnap = data?.find((s) => s.code !== 'IX0001');
+    const indexClose = indexLive?.index
+        ? Number(indexLive.index.close)
+        : indexSnap?.close;
+    const indexReference = indexLive?.index
+        ? Number(indexLive.index.reference)
+        : indexSnap
+          ? indexSnap.close - indexSnap.change_price
+          : undefined;
+    const indexChange =
+        indexClose !== undefined && indexReference !== undefined
+            ? indexClose - indexReference
+            : undefined;
+    const indexPct =
+        indexChange !== undefined && indexReference
+            ? (indexChange / indexReference) * 100
+            : indexSnap?.change_rate;
     const txfClose = txfLive?.tick
         ? Number(txfLive.tick.close)
         : txfSnap?.close;
     const basis =
-        index && txfClose !== undefined ? txfClose - index.close : undefined;
+        indexClose !== undefined && txfClose !== undefined
+            ? txfClose - indexClose
+            : undefined;
 
-    if (!index) return null;
+    if (indexClose === undefined) return null;
     const dir =
-        index.change_price > 0 ? 'up' : index.change_price < 0 ? 'down' : 'flat';
+        indexChange === undefined || indexChange === 0
+            ? 'flat'
+            : indexChange > 0
+              ? 'up'
+              : 'down';
     const basisDir =
         basis === undefined || basis === 0 ? 'flat' : basis > 0 ? 'up' : 'down';
 
@@ -48,7 +79,7 @@ export function MarketBar() {
             <div className={styles.chip}>
                 <span className={styles.chipLabel}>加權</span>
                 <span className={panel.dirText[dir]}>
-                    {fmtPrice(index.close)} {fmtPct(index.change_rate)}
+                    {fmtPrice(indexClose)} {fmtPct(indexPct)}
                 </span>
             </div>
             {basis !== undefined && (

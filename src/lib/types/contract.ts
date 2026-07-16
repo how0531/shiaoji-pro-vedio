@@ -1,11 +1,13 @@
 // src/lib/types/contract.ts
 
+export type Region = 'TW' | 'US' | 'HK' | 'JP';
 export type Exchange = 'TSE' | 'OTC' | 'OES' | 'TAIFEX' | null;
-export type SecurityType = 'IND' | 'STK' | 'FUT' | 'OPT' | null;
+export type SecurityType = 'IND' | 'STK' | 'FUT' | 'OPT' | 'WRT' | null;
 export type Currency = 'TWD' | 'USD' | 'CNY';
 export type DayTrade = 'Yes' | 'OnlyBuy' | 'No' | '';
 
 export interface ContractBase {
+    region?: Region;
     exchange: Exchange;
     code: string;
     security_type: SecurityType;
@@ -29,10 +31,25 @@ export interface ContractInfo extends Contract {
     // futures/options: contract multiplier from the API (e.g. TXF 200,
     // stock futures 2000); options carry strike/right for payoff math
     multiplier?: number;
+    contract_size?: number;
+    size_unit?: string;
     strike_price?: number;
     option_right?: string;
     delivery_month?: string;
+    delivery_date?: string;
+    last_trading_date?: string;
+    root?: string;
     underlying_code?: string;
-    // 'I' index, 'S' stock, 'E' ETF (TAIFEX underlying type)
+    // 'I' index, 'S' stock, 'E' FX, 'C' commodity (TAIFEX 1.7 metadata)
     underlying_kind?: string;
+    spec_kind?: string;
+    tick_rule?: string;
+    tick?: number;
+    tick_value?: number;
+    call_put?: string;
+    expiry_date?: string;
+    exercise_ratio?: number;
+    listing_date?: string;
+    issue_size?: number;
+    financial?: string;
 }

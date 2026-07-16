@@ -5,7 +5,7 @@ import { focusSector } from '../lib/sector-sync';
 import { fetchScanner } from '../lib/shioaji';
 import {
     categoryOf,
-    loadStockIndex,
+    loadStockDetails,
     sectorLabel,
     type StockMeta,
 } from '../lib/stock-index';
@@ -103,10 +103,18 @@ export function ScannerPanel({
     const [index, setIndex] = useState<StockMeta[] | null>(null);
     const mode = MODES.find((m) => m.key === modeKey) ?? MODES[0]!;
 
-    // stock index for the per-row 類別 label + 跳同類 (issue #2)
+    // Contract V2: fetch typed StockInfo only for the visible scanner rows.
     useEffect(() => {
-        loadStockIndex().then(setIndex).catch(() => undefined);
-    }, []);
+        let alive = true;
+        loadStockDetails(items.map((item) => item.code))
+            .then((details) => {
+                if (alive) setIndex(details);
+            })
+            .catch(() => undefined);
+        return () => {
+            alive = false;
+        };
+    }, [items]);
     const catByCode = useMemo(() => {
         const m = new Map<string, string>();
         for (const it of items) {

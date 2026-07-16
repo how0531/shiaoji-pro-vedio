@@ -52,7 +52,7 @@ function deriveComboType(legs: LegState[]): ComboType | null {
     if (!a || !b) return null;
     const sameAction = l0.action === l1.action;
     const root = (c: ContractInfo) =>
-        c.category || c.code.replace(/(R[12]|[A-Z]\d)$/, '');
+        c.root || c.category || c.code.replace(/(R[12]|[A-Z]\d)$/, '');
     if (a.security_type === 'FUT' && b.security_type === 'FUT') {
         // 同商品跨月、一買一賣 ＝ 跨月價差（轉倉）
         if (

@@ -41,6 +41,8 @@ import { ScannerPanel } from './components/scanner-panel';
 import { TickTape } from './components/tick-tape';
 import { TrayPanel } from './components/tray-panel';
 import { Watchlist } from './components/watchlist';
+import { StockFuturesPanel } from './components/stock-futures-panel';
+import { WarrantPanel } from './components/warrant-panel';
 import * as panel from './components/panel.css';
 import { useHotkeys } from './hooks/use-hotkeys';
 import { usePoll } from './hooks/use-poll';
@@ -198,6 +200,32 @@ function BlockBody({
             );
         case 'optchain':
             return <OptionChain onPick={onSelectCode} />;
+        case 'stockfutures':
+            return (
+                <StockFuturesPanel
+                    onPick={onSelectCode}
+                    onAdd={(selectedContract) =>
+                        watchlistProps.onAdd(
+                            selectedContract.code,
+                            selectedContract.security_type,
+                            selectedContract,
+                        )
+                    }
+                />
+            );
+        case 'warrants':
+            return (
+                <WarrantPanel
+                    onPick={onSelectCode}
+                    onAdd={(selectedContract) =>
+                        watchlistProps.onAdd(
+                            selectedContract.code,
+                            selectedContract.security_type,
+                            selectedContract,
+                        )
+                    }
+                />
+            );
         case 'combo':
             return <ComboTicket />;
         case 'notices':
@@ -444,6 +472,15 @@ export default function App() {
         const first = items[0];
         if (!selected && first) {
             setSelected(first.contract);
+            return;
+        }
+        if (selected) {
+            const refreshed = items.find(
+                (item) => item.contract.code === selected.code,
+            );
+            if (refreshed && refreshed.contract !== selected) {
+                setSelected(refreshed.contract);
+            }
         }
     }, [items, selected]);
 

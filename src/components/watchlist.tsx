@@ -18,11 +18,11 @@ import type { WatchItem } from '../hooks/use-watchlist';
 import type { ServerWatchlist } from '../lib/shioaji';
 import { getQuote } from '../lib/stream';
 import type { ContractInfo } from '../lib/types/contract';
+import type { SecurityType } from '../lib/types/contract';
 import {
-    loadStockIndex,
-    searchStocks,
-    type StockMeta,
-} from '../lib/stock-index';
+    searchProducts,
+    type ProductSuggestion,
+} from '../lib/product-search';
 import { fmtPct, fmtPrice, fmtSigned } from '../lib/utils/format';
 import { Sparkline } from './sparkline';
 import * as panel from './panel.css';
@@ -165,7 +165,11 @@ export function Watchlist({
     items: WatchItem[];
     selectedCode: string | null;
     onSelect: (c: ContractInfo) => void;
-    onAdd: (code: string) => Promise<unknown>;
+    onAdd: (
+        code: string,
+        type?: SecurityType,
+        resolved?: ContractInfo,
+    ) => Promise<unknown>;
     onRemove: (code: string) => void;
     onReorder: (fromCode: string, toCode: string) => void;
     serverLists: ServerWatchlist[];
@@ -180,25 +184,28 @@ export function Watchlist({
     const [input, setInput] = useState('');
     const [busy, setBusy] = useState(false);
     const [creating, setCreating] = useState(false);
-    // 中文股名搜尋 (issue #2) — index loads lazily on first non-empty input
-    const [stockIndex, setStockIndex] = useState<StockMeta[] | null>(null);
-    const [suggestions, setSuggestions] = useState<StockMeta[]>([]);
-    const updateSuggestions = (value: string) => {
-        if (!value.trim()) {
+    const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
+    useEffect(() => {
+        const query = input.trim();
+        if (!query) {
             setSuggestions([]);
             return;
         }
-        if (!stockIndex) {
-            loadStockIndex()
-                .then((idx) => {
-                    setStockIndex(idx);
-                    setSuggestions(searchStocks(idx, value));
+        let active = true;
+        const timer = setTimeout(() => {
+            void searchProducts(query, 10)
+                .then((results) => {
+                    if (active) setSuggestions(results);
                 })
-                .catch(() => undefined);
-            return;
-        }
-        setSuggestions(searchStocks(stockIndex, value));
-    };
+                .catch(() => {
+                    if (active) setSuggestions([]);
+                });
+        }, 150);
+        return () => {
+            active = false;
+            clearTimeout(timer);
+        };
+    }, [input]);
     const [newName, setNewName] = useState('');
     const [confirmDelete, setConfirmDelete] = useState(false);
     // inline rename (issue #9) — WKWebView has no working window.prompt,
@@ -488,7 +495,11 @@ export function Watchlist({
                                     setInput('');
                                     setBusy(true);
                                     try {
-                                        await onAdd(s.code);
+                                        await onAdd(
+                                            s.code,
+                                            s.security_type,
+                                            s.contract,
+                                        );
                                     } finally {
                                         setBusy(false);
                                     }
@@ -501,7 +512,7 @@ export function Watchlist({
                                     {s.name}
                                 </span>
                                 <span className={styles.suggestCat}>
-                                    {s.category}
+                                    {s.detail}
                                 </span>
                             </button>
                         ))}
@@ -509,11 +520,10 @@ export function Watchlist({
                 )}
                 <input
                     className={styles.addInput}
-                    placeholder='代碼或股名（如 2330 / 台積電）'
+                    placeholder='股票、期貨或指數（如 台積電期）'
                     value={input}
                     onChange={(e) => {
                         setInput(e.target.value);
-                        updateSuggestions(e.target.value);
                     }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {

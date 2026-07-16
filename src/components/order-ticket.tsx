@@ -20,6 +20,7 @@ import type {
 import {
     contractMultiplier,
     futuresTaxRate,
+    stockTaxRate,
 } from '../lib/utils/contract-cost';
 import { fmtPrice } from '../lib/utils/format';
 import * as panel from './panel.css';
@@ -172,6 +173,16 @@ export function OrderTicket({
     const { selectedStock, selectedFutures } = useAccounts();
     const priv = usePrivacyMode();
     const activeAccount = isFutures ? selectedFutures : selectedStock;
+
+    if (contract.security_type === 'IND') {
+        return (
+            <div className={styles.body}>
+                <span className={styles.costRow}>
+                    指數商品僅提供即時行情與分析，不支援下單
+                </span>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.body}>
@@ -501,7 +512,7 @@ function CostEstimate({
         const notional = price * mult * qty;
         const tax = Math.max(
             1,
-            Math.round(notional * futuresTaxRate(contract.category)),
+            Math.round(notional * futuresTaxRate(contract)),
         );
         return (
             <span className={styles.costRow}>
@@ -510,12 +521,13 @@ function CostEstimate({
             </span>
         );
     }
-    const isEtf = contract.code.startsWith('00');
     const shares = odd ? qty : qty * 1000;
     const notional = price * shares;
     const fee = Math.max(odd ? 1 : 20, Math.round(notional * 0.001425));
-    // 證交稅（賣出）: 一般 0.3%、當沖賣出減半 0.15%、ETF 0.1%（不適用減半）
-    const taxRate = isEtf ? 0.001 : daytrade ? 0.0015 : 0.003;
+    const baseTaxRate = stockTaxRate(contract);
+    // 一般股票當沖賣出減半；ETF 與權證固定 0.1%。
+    const taxRate =
+        baseTaxRate === 0.003 && daytrade ? 0.0015 : baseTaxRate;
     const tax = action === 'Sell' ? Math.round(notional * taxRate) : 0;
     return (
         <span className={styles.costRow}>

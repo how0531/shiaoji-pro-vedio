@@ -7,15 +7,17 @@ import { ensureContract, primeContract } from '../lib/contracts-cache';
 import {
     createWatchlist,
     deleteWatchlist,
-    fetchContract,
     fetchSnapshots,
     fetchWatchlists,
+    addWatchlistContracts,
+    removeWatchlistContracts,
     renameWatchlist,
-    subscribeQuote,
+    resolveContract as resolveContractV2,
+    subscribeContractQuotes,
     syncWatchlist,
     type ServerWatchlist,
 } from '../lib/shioaji';
-import { registerCodeAlias } from '../lib/stream';
+import { onContractEvent, registerCodeAlias } from '../lib/stream';
 import { notify } from '../lib/trade';
 import type { ContractInfo, SecurityType } from '../lib/types/contract';
 import type { Snapshot } from '../lib/types/market';
@@ -42,8 +44,8 @@ async function resolveContract(
     code: string,
     type?: SecurityType | null,
 ): Promise<ContractInfo> {
-    if (type) return fetchContract(code, type);
-    return ensureContract(code); // STK → FUT → IND auto-detect
+    if (type) return resolveContractV2(code, type);
+    return ensureContract(code);
 }
 
 export function useWatchlist() {
@@ -65,10 +67,7 @@ export function useWatchlist() {
         primeContract(contract);
         if (!subscribed.current.has(contract.code)) {
             subscribed.current.add(contract.code);
-            await Promise.allSettled([
-                subscribeQuote(contract, 'Tick'),
-                subscribeQuote(contract, 'BidAsk'),
-            ]);
+            await subscribeContractQuotes(contract);
         }
     }, []);
 
@@ -135,13 +134,23 @@ export function useWatchlist() {
                         r.status === 'fulfilled',
                 )
                 .map((r) => r.value);
+            const migrated =
+                results.every((result) => result.status === 'fulfilled') &&
+                contracts.some(
+                    (contract, index) =>
+                        contract.code !== list.contracts[index]?.code,
+                );
             await Promise.allSettled(contracts.map(subscribeContract));
             if (loadSeq.current !== seq) return;
             setItems(contracts.map((c) => ({ contract: c })));
             attachSnapshots(contracts);
+            if (migrated) {
+                await syncWatchlist(list.id, contracts);
+                await refreshLists();
+            }
             setLoading(false);
         },
-        [subscribeContract, attachSnapshots],
+        [subscribeContract, attachSnapshots, refreshLists],
     );
 
     const setActiveList = useCallback(
@@ -158,33 +167,48 @@ export function useWatchlist() {
     );
 
     const addSymbol = useCallback(
-        async (code: string, type?: SecurityType) => {
-            const contract = await resolveContract(code, type);
+        async (
+            code: string,
+            type?: SecurityType,
+            resolved?: ContractInfo,
+        ) => {
+            const contract = resolved ?? (await resolveContract(code, type));
+            if (resolved) primeContract(resolved);
+            if (items.some((i) => i.contract.code === contract.code)) {
+                return contract;
+            }
             await subscribeContract(contract);
-            let next: WatchItem[] | null = null;
-            setItems((prev) => {
-                if (prev.some((i) => i.contract.code === contract.code)) {
-                    return prev;
-                }
-                next = [...prev, { contract }];
-                return next;
-            });
-            if (next) persistItems(next);
+            const id = activeIdRef.current;
+            if (id) {
+                await addWatchlistContracts(id, [contract]);
+                await refreshLists();
+            }
+            setItems((prev) => [...prev, { contract }]);
             attachSnapshots([contract]);
             return contract;
         },
-        [subscribeContract, attachSnapshots, persistItems],
+        [
+            items,
+            subscribeContract,
+            attachSnapshots,
+            refreshLists,
+        ],
     );
 
     const removeSymbol = useCallback(
-        (code: string) => {
-            setItems((prev) => {
-                const next = prev.filter((i) => i.contract.code !== code);
-                persistItems(next);
-                return next;
-            });
+        async (code: string) => {
+            const item = items.find((i) => i.contract.code === code);
+            if (!item) return;
+            const id = activeIdRef.current;
+            if (id) {
+                await removeWatchlistContracts(id, [item.contract]);
+                await refreshLists();
+            }
+            setItems((prev) =>
+                prev.filter((i) => i.contract.code !== code),
+            );
         },
-        [persistItems],
+        [items, refreshLists],
     );
 
     // drag-to-reorder: move `fromCode` to the position of `toCode`
@@ -366,6 +390,20 @@ export function useWatchlist() {
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    useEffect(() => {
+        return onContractEvent((event) => {
+            const list = serverLists.find(
+                (candidate) => candidate.id === activeIdRef.current,
+            );
+            if (
+                list &&
+                (event.base_changed || event.info_changed)
+            ) {
+                void loadList(list);
+            }
+        });
+    }, [serverLists, loadList]);
 
     return {
         items,

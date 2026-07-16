@@ -117,6 +117,34 @@ export interface SseBidAsk {
     simtrade?: boolean;
 }
 
+// SSE quote_idx events. Only the standard price fields are guaranteed for
+// every exchange index; broad-market statistics are intentionally optional.
+export interface SseIndexQuote {
+    code: string;
+    exchange: string;
+    date: string;
+    time: string;
+    datetime?: string;
+    reference: string;
+    open: string;
+    high: string;
+    low: string;
+    close: string;
+    amount_sum?: string;
+    amount?: string;
+    volume?: number;
+    vol_sum?: number;
+    count?: number;
+    count_sum?: number;
+    no_trade?: number;
+    limit_up_count?: number;
+    raise_count?: number;
+    flat_count?: number;
+    fall_count?: number;
+    limit_down_count?: number;
+    estimate_amount_sum?: string;
+}
+
 export type QuoteTypeName = 'Tick' | 'BidAsk' | 'Quote';
 
 export interface SubscriptionResponse {

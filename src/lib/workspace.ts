@@ -15,6 +15,8 @@ export type BlockType =
     | 'chips'
     | 'volprofile'
     | 'optchain'
+    | 'stockfutures'
+    | 'warrants'
     | 'replay'
     | 'depthmap'
     | 'combo'
@@ -123,6 +125,18 @@ export const BLOCK_META: Record<
         pinnable: false,
         singleton: true,
         defaultSize: { w: 10, h: 14, minW: 8, minH: 8 },
+    },
+    stockfutures: {
+        label: '個股期選擇器',
+        pinnable: false,
+        singleton: true,
+        defaultSize: { w: 9, h: 12, minW: 7, minH: 8 },
+    },
+    warrants: {
+        label: '權證篩選器',
+        pinnable: false,
+        singleton: true,
+        defaultSize: { w: 12, h: 14, minW: 9, minH: 9 },
     },
     replay: {
         label: '行情回放',
@@ -279,6 +293,26 @@ export const LAYOUT_PRESETS: { name: string; desc: string; workspace: Workspace 
                 { i: 'depth-ow', x: 19, y: 10, w: 5, h: 6, minW: 4, minH: 6 },
                 { i: 'dock-ow', x: 0, y: 16, w: 16, h: 9, minW: 6, minH: 5 },
                 { i: 'optpnl-ow', x: 16, y: 16, w: 8, h: 9, minW: 6, minH: 9 },
+            ],
+        },
+    },
+    {
+        name: '衍生商品探索',
+        desc: '個股期與權證篩選、連動圖表、下單與自選',
+        workspace: {
+            blocks: [
+                { id: 'stockfut-dx', type: 'stockfutures', pin: null },
+                { id: 'warrant-dx', type: 'warrants', pin: null },
+                { id: 'chart-dx', type: 'chart', pin: null },
+                { id: 'ticket-dx', type: 'ticket', pin: null },
+                { id: 'watch-dx', type: 'watchlist', pin: null },
+            ],
+            layout: [
+                { i: 'stockfut-dx', x: 0, y: 0, w: 9, h: 14, minW: 7, minH: 8 },
+                { i: 'warrant-dx', x: 9, y: 0, w: 15, h: 14, minW: 9, minH: 9 },
+                { i: 'chart-dx', x: 0, y: 14, w: 12, h: 12, minW: 6, minH: 7 },
+                { i: 'ticket-dx', x: 12, y: 14, w: 5, h: 12, minW: 4, minH: 10 },
+                { i: 'watch-dx', x: 17, y: 14, w: 7, h: 12, minW: 3, minH: 6 },
             ],
         },
     },

@@ -3,7 +3,7 @@
 // its quote streams once, and exposes a useSyncExternalStore hook.
 
 import { useSyncExternalStore } from 'react';
-import { fetchContract, subscribeQuote } from './shioaji';
+import { resolveContract, subscribeContractQuotes } from './shioaji';
 import { registerCodeAlias } from './stream';
 import type { ContractInfo, SecurityType } from './types/contract';
 
@@ -21,10 +21,8 @@ export function getCachedContract(code: string): ContractInfo | undefined {
 }
 
 export function primeContract(contract: ContractInfo) {
-    if (!cache.has(contract.code)) {
-        cache.set(contract.code, contract);
-        emit();
-    }
+    cache.set(contract.code, contract);
+    emit();
     subscribed.add(contract.code); // watchlist already subscribed it
 }
 
@@ -34,50 +32,30 @@ export async function ensureContract(
 ): Promise<ContractInfo> {
     const hit = cache.get(code);
     if (hit) return hit;
-    const inflight = pending.get(code);
+    const pendingKey = `${type ?? 'AUTO'}:${code}`;
+    const inflight = pending.get(pendingKey);
     if (inflight) return inflight;
 
     const task = (async () => {
-        let contract: ContractInfo;
-        if (type) {
-            contract = await fetchContract(code, type);
-        } else {
-            // auto-detect: stock → futures → options → index
-            // (option codes like TX417000C6 resolved nothing before, so
-            // clicking the option chain couldn't link a contract — issue #2)
-            try {
-                contract = await fetchContract(code, 'STK');
-            } catch {
-                try {
-                    contract = await fetchContract(code, 'FUT');
-                } catch {
-                    try {
-                        contract = await fetchContract(code, 'OPT');
-                    } catch {
-                        contract = await fetchContract(code, 'IND');
-                    }
-                }
-            }
-        }
+        // Contract V2 get() searches all security types when no type is
+        // supplied, so auto-detection is one request instead of four 404s.
+        const contract = await resolveContract(code, type);
         cache.set(code, contract);
         if (contract.target_code) {
             registerCodeAlias(contract.target_code, contract.code);
         }
         if (!subscribed.has(contract.code)) {
             subscribed.add(contract.code);
-            await Promise.allSettled([
-                subscribeQuote(contract, 'Tick'),
-                subscribeQuote(contract, 'BidAsk'),
-            ]);
+            await subscribeContractQuotes(contract);
         }
         emit();
         return contract;
     })();
-    pending.set(code, task);
+    pending.set(pendingKey, task);
     try {
         return await task;
     } finally {
-        pending.delete(code);
+        pending.delete(pendingKey);
     }
 }
 

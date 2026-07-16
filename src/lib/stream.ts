@@ -3,7 +3,7 @@
 // via useSyncExternalStore without prop drilling.
 
 import { getApiBase } from './runtime';
-import type { SseBidAsk, SseTick } from './types/market';
+import type { SseBidAsk, SseIndexQuote, SseTick } from './types/market';
 import {
     normalizeOrderEvent,
     type OrderEventReport,
@@ -11,9 +11,22 @@ import {
 
 export type StreamStatus = 'connecting' | 'live' | 'down';
 
+export interface ContractChangeEvent {
+    event_id: string;
+    action: string;
+    region: string;
+    security_type: string;
+    published_at: string;
+    base_changed: boolean;
+    info_changed: boolean;
+    info_scope: 'ALL' | 'SHARDS' | null;
+    info_shards: string[];
+}
+
 export interface QuoteState {
     tick?: SseTick;
     bidask?: SseBidAsk;
+    index?: SseIndexQuote;
     lastDir: 1 | -1 | 0; // direction of last price move, for flash effects
     seq: number; // bumps on every update (tick or bidask)
     flashSeq: number; // bumps only on real trades (not simtrade/bidask)
@@ -44,6 +57,9 @@ const quoteListeners = new Map<string, Set<Listener>>();
 const statusListeners = new Set<Listener>();
 const orderEventListeners = new Set<(ev: OrderEventReport) => void>();
 const tickTapeListeners = new Set<(tick: SseTick) => void>();
+const contractEventListeners = new Set<
+    (event: ContractChangeEvent) => void
+>();
 
 function emitQuote(code: string) {
     quoteListeners.get(code)?.forEach((l) => l());
@@ -79,6 +95,7 @@ function ingestTick(tick: SseTick) {
     quotes.set(tick.code, {
         tick,
         bidask: prev?.bidask,
+        index: prev?.index,
         lastDir,
         seq: (prev?.seq ?? 0) + 1,
         flashSeq: (prev?.flashSeq ?? 0) + (isRealTrade ? 1 : 0),
@@ -102,11 +119,34 @@ function ingestBidAsk(bidask: SseBidAsk) {
     quotes.set(bidask.code, {
         tick: prev?.tick,
         bidask,
+        index: prev?.index,
         lastDir: prev?.lastDir ?? 0,
         seq: (prev?.seq ?? 0) + 1,
         flashSeq: prev?.flashSeq ?? 0,
     });
     emitQuote(bidask.code);
+}
+
+function handleIndexQuote(raw: string) {
+    const index = JSON.parse(raw) as SseIndexQuote;
+    const prev = quotes.get(index.code);
+    const previousClose = prev?.index ? Number(prev.index.close) : undefined;
+    const close = Number(index.close);
+    const lastDir: QuoteState['lastDir'] =
+        previousClose === undefined || close === previousClose
+            ? (prev?.lastDir ?? 0)
+            : close > previousClose
+              ? 1
+              : -1;
+    quotes.set(index.code, {
+        tick: prev?.tick,
+        bidask: prev?.bidask,
+        index,
+        lastDir,
+        seq: (prev?.seq ?? 0) + 1,
+        flashSeq: prev?.flashSeq ?? 0,
+    });
+    emitQuote(index.code);
 }
 
 // registry of every quote subscription made this session — replayed after
@@ -124,6 +164,10 @@ export function registerSubscription(body: {
     subscriptionRegistry.set(`${body.code}:${body.quote_type}`, body);
 }
 
+export function unregisterSubscription(code: string, quoteType: string) {
+    subscriptionRegistry.delete(`${code}:${quoteType}`);
+}
+
 async function resubscribeAll() {
     for (const body of subscriptionRegistry.values()) {
         try {
@@ -139,7 +183,9 @@ async function resubscribeAll() {
 }
 
 let es: EventSource | null = null;
+let contractEs: EventSource | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let contractRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let retryDelay = 1000;
 let everDown = false;
 
@@ -163,6 +209,9 @@ function connect() {
     for (const ev of ['bidask_stk', 'bidask_fop']) {
         es.addEventListener(ev, (e) => handleBidAsk((e as MessageEvent).data));
     }
+    es.addEventListener('quote_idx', (e) =>
+        handleIndexQuote((e as MessageEvent).data),
+    );
     es.addEventListener('order_event', (e) => {
         // the server wraps the body one level under its variant name
         // ({state, data:{FuturesOrder:{...}}}) — normalize before fan-out
@@ -184,6 +233,25 @@ function connect() {
         if (retryTimer) clearTimeout(retryTimer);
         retryTimer = setTimeout(connect, retryDelay);
         retryDelay = Math.min(retryDelay * 2, 15000);
+    };
+}
+
+function connectContractEvents() {
+    contractEs?.close();
+    contractEs = new EventSource(
+        `${getApiBase()}/api/v1/stream/data/contract_event?region=TW`,
+    );
+    contractEs.addEventListener('contract_event', (event) => {
+        const change = JSON.parse(
+            (event as MessageEvent).data,
+        ) as ContractChangeEvent;
+        contractEventListeners.forEach((listener) => listener(change));
+    });
+    contractEs.onerror = () => {
+        contractEs?.close();
+        contractEs = null;
+        if (contractRetryTimer) clearTimeout(contractRetryTimer);
+        contractRetryTimer = setTimeout(connectContractEvents, 5000);
     };
 }
 
@@ -212,6 +280,7 @@ export function ensureStream() {
     if (!started) {
         started = true;
         connect();
+        connectContractEvents();
         void watchMaintenance();
         setInterval(watchMaintenance, 60000);
     }
@@ -265,5 +334,14 @@ export function onAnyTick(listener: (tick: SseTick) => void) {
     tickTapeListeners.add(listener);
     return () => {
         tickTapeListeners.delete(listener);
+    };
+}
+
+export function onContractEvent(
+    listener: (event: ContractChangeEvent) => void,
+) {
+    contractEventListeners.add(listener);
+    return () => {
+        contractEventListeners.delete(listener);
     };
 }

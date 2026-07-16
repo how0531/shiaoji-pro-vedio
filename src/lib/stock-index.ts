@@ -1,7 +1,12 @@
-// src/lib/stock-index.ts — all stock contracts loaded once for name
-// search (找代碼不用背) and category/sector grouping.
+// src/lib/stock-index.ts — Contract V2 stock catalog and optional typed info.
+// Base records stay lightweight; full StockInfo is loaded only by screens that
+// genuinely need category/rule fields (for example the sector heatmap).
 
-import { apiPost } from './api';
+import {
+    fetchContractInfo,
+    fetchContracts,
+    fetchWarrantUnderlyings,
+} from './shioaji';
 
 export interface StockMeta {
     code: string;
@@ -11,25 +16,104 @@ export interface StockMeta {
     day_trade?: string;
 }
 
-let cache: StockMeta[] | null = null;
-let loading: Promise<StockMeta[]> | null = null;
+let catalogCache: StockMeta[] | null = null;
+let catalogLoading: Promise<StockMeta[]> | null = null;
+let detailsCache: StockMeta[] | null = null;
+let detailsLoading: Promise<StockMeta[]> | null = null;
 
-export function loadStockIndex(): Promise<StockMeta[]> {
-    if (cache) return Promise.resolve(cache);
-    if (loading) return loading;
-    loading = apiPost<{ contracts: StockMeta[] }>('/api/v1/data/contracts', {
-        security_type: 'STK',
-        page: -1,
-    })
-        .then((res) => {
-            cache = res.contracts.filter((c) => c.code && c.name);
-            return cache;
+export function loadStockCatalog(): Promise<StockMeta[]> {
+    if (catalogCache) return Promise.resolve(catalogCache);
+    if (catalogLoading) return catalogLoading;
+    catalogLoading = Promise.all([
+        fetchContracts('STK'),
+        fetchWarrantUnderlyings().catch(() => []),
+    ])
+        .then(([res, underlyings]) => {
+            const names = new Map(
+                underlyings
+                    .filter((row) => row.name)
+                    .map((row) => [row.underlying_code, row.name!]),
+            );
+            catalogCache = res.contracts
+                .filter((c) => c.code)
+                .map((c) => ({
+                    code: c.code,
+                    name: names.get(c.code) ?? c.code,
+                    category: '',
+                    exchange: c.exchange ?? '',
+                }));
+            return catalogCache;
         })
         .catch((e) => {
-            loading = null; // allow retry
+            catalogLoading = null;
             throw e;
         });
-    return loading;
+    return catalogLoading;
+}
+
+async function mapConcurrent<T, R>(
+    values: T[],
+    concurrency: number,
+    fn: (value: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+    const results: PromiseSettledResult<R>[] = new Array(values.length);
+    let cursor = 0;
+    const worker = async () => {
+        while (cursor < values.length) {
+            const index = cursor++;
+            try {
+                results[index] = {
+                    status: 'fulfilled',
+                    value: await fn(values[index]!),
+                };
+            } catch (reason) {
+                results[index] = { status: 'rejected', reason };
+            }
+        }
+    };
+    await Promise.all(
+        Array.from(
+            { length: Math.min(concurrency, values.length) },
+            worker,
+        ),
+    );
+    return results;
+}
+
+export async function loadStockDetails(codes: string[]): Promise<StockMeta[]> {
+    const unique = [...new Set(codes.filter(Boolean))];
+    const rows = await mapConcurrent(unique, 16, (code) =>
+        fetchContractInfo(code, 'STK'),
+    );
+    return rows.flatMap((result) =>
+        result.status === 'fulfilled'
+            ? [
+                  {
+                      code: result.value.code,
+                      name: result.value.name,
+                      category: result.value.category,
+                      exchange: result.value.exchange ?? '',
+                      day_trade: result.value.day_trade,
+                  },
+              ]
+            : [],
+    );
+}
+
+export function loadStockIndex(): Promise<StockMeta[]> {
+    if (detailsCache) return Promise.resolve(detailsCache);
+    if (detailsLoading) return detailsLoading;
+    detailsLoading = loadStockCatalog()
+        .then((catalog) => loadStockDetails(catalog.map((stock) => stock.code)))
+        .then((details) => {
+            detailsCache = details;
+            return detailsCache;
+        })
+        .catch((error) => {
+            detailsLoading = null;
+            throw error;
+        });
+    return detailsLoading;
 }
 
 // substring match on name, prefix match on code — ranked so the actual
@@ -110,7 +194,7 @@ export function sectorLabel(category: string): string {
     return SECTOR_LABELS[category] ?? category;
 }
 
-// TWSE industry index (IND) code → the stock category it drills into, so the
+// TWSE industry index master code → the stock category it drills into, so the
 // heatmap can show a sector-heat overview (which 類股 is hot today) and then
 // drill into that sector's members (issue #2).
 export const SECTOR_INDICES: {
@@ -118,32 +202,32 @@ export const SECTOR_INDICES: {
     category: string;
     label: string;
 }[] = [
-    { index: '036', category: '24', label: '半導體' },
-    { index: '037', category: '25', label: '電腦週邊' },
-    { index: '038', category: '26', label: '光電' },
-    { index: '039', category: '27', label: '通信網路' },
-    { index: '040', category: '28', label: '電子零組件' },
-    { index: '041', category: '29', label: '電子通路' },
-    { index: '042', category: '30', label: '資訊服務' },
-    { index: '043', category: '31', label: '其他電子' },
-    { index: '031', category: '17', label: '金融保險' },
-    { index: '029', category: '15', label: '航運' },
-    { index: '026', category: '12', label: '汽車' },
-    { index: '024', category: '10', label: '鋼鐵' },
-    { index: '035', category: '23', label: '油電燃氣' },
-    { index: '021', category: '22', label: '生技化學' },
-    { index: '028', category: '14', label: '建材營造' },
-    { index: '019', category: '05', label: '電機機械' },
-    { index: '017', category: '03', label: '塑膠' },
-    { index: '016', category: '02', label: '食品' },
-    { index: '018', category: '04', label: '紡織' },
-    { index: '015', category: '01', label: '水泥' },
-    { index: '030', category: '16', label: '觀光' },
-    { index: '032', category: '18', label: '貿易百貨' },
-    { index: '025', category: '11', label: '橡膠' },
-    { index: '023', category: '09', label: '造紙' },
-    { index: '020', category: '06', label: '電器電纜' },
-    { index: '022', category: '08', label: '玻璃陶瓷' },
+    { index: 'IX0028', category: '24', label: '半導體' },
+    { index: 'IX0029', category: '25', label: '電腦週邊' },
+    { index: 'IX0030', category: '26', label: '光電' },
+    { index: 'IX0031', category: '27', label: '通信網路' },
+    { index: 'IX0032', category: '28', label: '電子零組件' },
+    { index: 'IX0033', category: '29', label: '電子通路' },
+    { index: 'IX0034', category: '30', label: '資訊服務' },
+    { index: 'IX0035', category: '31', label: '其他電子' },
+    { index: 'IX0039', category: '17', label: '金融保險' },
+    { index: 'IX0037', category: '15', label: '航運' },
+    { index: 'IX0026', category: '12', label: '汽車' },
+    { index: 'IX0024', category: '10', label: '鋼鐵' },
+    { index: 'IX0041', category: '23', label: '油電燃氣' },
+    { index: 'IX0021', category: '22', label: '生技醫療' },
+    { index: 'IX0036', category: '14', label: '建材營造' },
+    { index: 'IX0017', category: '05', label: '電機機械' },
+    { index: 'IX0012', category: '03', label: '塑膠' },
+    { index: 'IX0011', category: '02', label: '食品' },
+    { index: 'IX0016', category: '04', label: '紡織' },
+    { index: 'IX0010', category: '01', label: '水泥' },
+    { index: 'IX0038', category: '16', label: '觀光' },
+    { index: 'IX0040', category: '18', label: '貿易百貨' },
+    { index: 'IX0025', category: '11', label: '橡膠' },
+    { index: 'IX0023', category: '09', label: '造紙' },
+    { index: 'IX0018', category: '06', label: '電器電纜' },
+    { index: 'IX0022', category: '08', label: '玻璃陶瓷' },
 ];
 
 // the category code for a single stock code (for showing/jumping by sector)
