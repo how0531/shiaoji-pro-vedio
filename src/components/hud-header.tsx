@@ -13,7 +13,6 @@ import {
     setRiskSettings,
     useRiskSettings,
 } from '../lib/risk';
-import { EXPECTED_SERVER_VERSION } from '../lib/runtime';
 import { fetchInfo } from '../lib/shioaji';
 import {
     maskAccountId,
@@ -38,6 +37,7 @@ import {
     type ThemeMode,
 } from '../lib/theme-store';
 import {
+    appVersion,
     checkForUpdates,
     listenTrayEvents,
     openFlashTiles,
@@ -692,7 +692,7 @@ export function HudHeader({
     const streamStatus = useStreamStatus();
     const privMoney = usePrivacyMoney();
     const [simulation, setSimulation] = useState<boolean | null>(null);
-    const [version, setVersion] = useState('');
+    const [appVer, setAppVer] = useState('');
     const [now, setNow] = useState(() => new Date());
     const [serverMgrOpen, setServerMgrOpen] = useState(false);
 
@@ -709,6 +709,10 @@ export function HudHeader({
     }, []);
 
     useEffect(() => {
+        void appVersion().then(setAppVer);
+    }, []);
+
+    useEffect(() => {
         // retry until the server answers — a one-shot fetch loses the race
         // against a daemon that is still starting after an app update
         let done = false;
@@ -718,7 +722,6 @@ export function HudHeader({
                     done = true;
                     clearInterval(retry);
                     setSimulation(info.simulation);
-                    setVersion(info.version);
                 })
                 .catch(() => undefined);
         const retry = setInterval(() => {
@@ -737,19 +740,9 @@ export function HudHeader({
             <div className={styles.logoBlock}>
                 <span className={styles.logoMain}>Shioaji Pro</span>
                 <span className={styles.logoSub}>
-                    交易終端{' '}
-                    {version &&
-                        (EXPECTED_SERVER_VERSION &&
-                        version !== EXPECTED_SERVER_VERSION ? (
-                            <span
-                                className={styles.versionWarn}
-                                title={`連線中的 server 是 v${version}，本版 App 對應 v${EXPECTED_SERVER_VERSION} — API 行為可能不一致，請改用內建伺服器或升級 server`}
-                            >
-                                v{version}（需 {EXPECTED_SERVER_VERSION}）
-                            </span>
-                        ) : (
-                            `v${version}`
-                        ))}
+                    交易終端
+                    {appVer &&
+                        ` · ${appVer === 'dev' ? 'Dev' : `App v${appVer}`}`}
                 </span>
             </div>
 
