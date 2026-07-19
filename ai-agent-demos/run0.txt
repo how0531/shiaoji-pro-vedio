@@ -1,0 +1,23 @@
+========================================================
+ 自主交易代理 · 端到端示範  (模擬環境 · 不動真錢)
+========================================================
+[登入] 帳戶 4 個；證券[•••••00] 期貨[•••••73]
+Response Code: 0 | Event Code: 0 | Info: host '•••.•••.•••.•••', hostname '•••.•••.•••.•••' IP •••.•••.•••.••• (host 1 of 1) (host connection attempt 1 of 1) (total connection attempt 1 of 2) | Event: Session up
+Response Code: 200 | Event Code: 18 | Info: #P2P/v:bcsolace01/Oryfkqqm/PYAPI/R*********/0719/104604/905708900/•••.•••.•••.•••/> | Event: Session Property modification ok
+Response Code: 200 | Event Code: 16 | Info: APISUB/V1/SYS/CONTRACT | Event: Subscribe or Unsubscribe ok
+[掃描] 選定 7814 海昌生技（漲幅 21.67%）
+[報價] 7814 現價 37.05
+[決策] 以限價 36.85（現價 −0.5%、已對齊 tick）掛進場買單 1 張
+<OrderState.StockOrder: 'SORDER'> {'operation': {'op_type': 'New', 'op_code': '00', 'op_msg': ''}, 'order': {'id': '000082', 'seqno': '000082', 'ordno': '000082', 'account': {'account_type': 'S', 'person_id': '', 'broker_id': '9A92', 'account_id': '•••••00', 'signed': True, 'username': ''}, 'action': 'Buy', 'price': 36.85, 'quantity': 1, 'order_type': 'ROD', 'price_type': 'LMT', 'order_cond': 'Cash', 'order_lot': 'Common', 'custom_field': ''}, 'status': {'id': '000082', 'exchange_ts': 1784457964.15274, 'modified_price': 0.0, 'cancel_quantity': 0, 'order_quantity': 1, 'web_id': '137'}, 'contract': {'exchange': 'OTC', 'code': '7814', 'security_type': 'STK', 'symbol': '', 'name': '', 'currency': ''}}
+[下單] 已送出，委託狀態：OrderStatus.PendingSubmit（模擬帳戶，不動真錢）
+[盯單] 第0輪 狀態=OrderStatus.PreSubmitted 成交量=0
+[盯單] 第1輪 狀態=OrderStatus.PreSubmitted 成交量=0
+[盯單] 第2輪 狀態=OrderStatus.PreSubmitted 成交量=0
+[盯單] 第3輪 狀態=OrderStatus.PreSubmitted 成交量=0
+[盯單] 第4輪 狀態=OrderStatus.PreSubmitted 成交量=0
+[風控] 進場單未成交（非交易日模擬伺服器自動取消，屬正常）。盤中成交後，代理會自動掛 OCO：停損 35.74 / 停利 38.69
+[帳務] 證[•••••00] 持倉0檔 未實現0 已實現0
+[帳務] 期[•••••73] 持倉0檔 未實現0 已實現0
+[風控] 當日損益合計 0，日虧上限 −30,000，狀態：正常
+
+代理一輪執行完畢：掃描 → 選股 → 進場 → 掛保護 → 盯場控管。

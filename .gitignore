@@ -21,3 +21,16 @@ dist/
 src-tauri/target/
 src-tauri/binaries/
 src-tauri/gen/schemas/
+
+# ── 影片專案（本 repo 專用）──
+# 本機 Claude 工作設定
+.claude/
+# 未遮罩的原始素材（含個資，絕不上傳）
+*.orig.mp4
+# 第一代舊產出（已被 T1-T7 / 進階系列取代，僅留本機）
+video-assets/成片/
+video-assets/footage/
+
+# Python cache
+__pycache__/
+*.pyc

@@ -1,0 +1,29 @@
+Response Code: 0 | Event Code: 0 | Info: host '•••.•••.•••.•••', hostname '•••.•••.•••.•••' IP •••.•••.•••.••• (host 1 of 1) (host connection attempt 1 of 1) (total connection attempt 1 of 2) | Event: Session up
+Response Code: 200 | Event Code: 18 | Info: #P2P/v:bcsolace01/Oryfkqqm/PYAPI/R*********/0719/073436/843977700/•••.•••.•••.•••/> | Event: Session Property modification ok
+Response Code: 200 | Event Code: 16 | Info: APISUB/V1/SYS/CONTRACT | Event: Subscribe or Unsubscribe ok
+== 括號單自動風控代理 ==  商品 2317 × 1（模擬環境）
+參考現價：234.0
+[demo] 假設進場單已於現價成交，啟動 OCO 保護：
+  掛上 OCO 保護：停損 226.98（−3%）／停利 245.7（+5%）
+  客戶端監看行情中……（每 3s 檢查一次；只在程式開著時有效）
+    [0] 現價 234.0
+    [1] 現價 234.0
+    [2] 現價 234.0
+    [3] 現價 234.0
+    [4] 現價 234.0
+    [5] 現價 234.0
+    [6] 現價 234.0
+    [7] 現價 234.0
+    [8] 現價 234.0
+    [9] 現價 234.0
+    [10] 現價 234.0
+    [11] 現價 234.0
+    [12] 現價 234.0
+    [13] 現價 234.0
+    [14] 現價 234.0
+    [15] 現價 234.0
+    [16] 現價 234.0
+    [17] 現價 234.0
+    [18] 現價 234.0
+    [19] 現價 234.0
+  監看迴圈結束（示範上限），未觸價。
