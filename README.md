@@ -8,11 +8,12 @@
 |---|---|
 | 🎬 入門七集 T1–T7（2K） | [`video-assets/教學七集/`](video-assets/教學七集/) |
 | 🎬 進階系列 進5–進11＋AI Agent（2K） | [`video-assets/進階系列/`](video-assets/進階系列/) |
-| 🗺 分眾觀看路線圖（該看哪幾集） | [`video-assets/分眾觀看路線圖.md`](video-assets/分眾觀看路線圖.md) |
+| 🗺 分眾觀看路線圖（該看哪幾集） | [`video-assets/企劃/分眾觀看路線圖.md`](video-assets/企劃/分眾觀看路線圖.md) |
 | 🛠 影片自動化製作管線（Playwright 實錄→組裝） | [`video-pipeline/`](video-pipeline/) |
 | 🤖 AI 交易代理實作（Shioaji SDK，模擬環境） | [`ai-agent-demos/`](ai-agent-demos/) |
 | 📖 介紹文／功能操作手冊 | [`介紹文.md`](介紹文.md)・[`功能操作手冊.md`](功能操作手冊.md) |
-| 📋 規劃與追蹤（總規劃/完成追蹤/風格指南） | [`video-assets/`](video-assets/) |
+| 📋 企劃與追蹤（總規劃/完成追蹤/風格指南） | [`video-assets/企劃/`](video-assets/企劃/) |
+| 📔 開發日誌（全程工程記錄） | [`開發日誌.md`](開發日誌.md) |
 
 ---
 

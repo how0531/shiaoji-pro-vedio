@@ -10,6 +10,7 @@
 #
 # Usage:  python scripts/assemble3.py t1-login
 import asyncio
+import hashlib
 import math
 import os
 import re
@@ -175,10 +176,16 @@ def split_sentences(t):
 
 
 async def _tts(sentences, outdir):
+    # CONTENT-ADDRESSED cache: the filename is a hash of (voice, rate, TEXT).
+    # The old positional scheme (s000.mp3, s001.mp3…) silently replayed STALE
+    # audio whenever a narration was edited — the video then SPOKE the old
+    # sentence under the new subtitle (user-heard 跳針/重複講). With content
+    # addressing an edited sentence always regenerates; unchanged ones reuse.
     outdir.mkdir(parents=True, exist_ok=True)
     files = []
-    for i, s in enumerate(sentences):
-        f = outdir / f"s{i:03d}.mp3"
+    for s in sentences:
+        h = hashlib.md5(f"{VOICE}|{RATE}|{s}".encode("utf-8")).hexdigest()[:16]
+        f = outdir / f"s{h}.mp3"
         if not f.exists() or f.stat().st_size == 0:
             await edge_tts.Communicate(s, VOICE, rate=RATE).save(str(f))
         files.append(f)
@@ -313,9 +320,14 @@ def silence(wd, dur, name):
     return out
 
 
-def card_clip(wd, png, dur, name, fade_in=0.4):
+def card_clip(wd, png, dur, name, fade_in=0.4, fade_out=0.4):
+    # Cards are STRICTLY STATIC (fade only) — zoompan's integer-pixel rounding
+    # makes slow ken-burns JITTER on sharp text (user-verified). Never zoom text.
     out = wd / f"v_{name}.mp4"
-    vf = f"scale=2560:1440:force_original_aspect_ratio=decrease,pad=2560:1440:(ow-iw)/2:(oh-ih)/2,fps=30,fade=t=in:st=0:d={fade_in}"
+    fo = max(0.0, dur - fade_out)
+    vf = (f"scale=2560:1440:force_original_aspect_ratio=decrease,"
+          f"pad=2560:1440:(ow-iw)/2:(oh-ih)/2,fps=30,"
+          f"fade=t=in:st=0:d={fade_in},fade=t=out:st={fo:.3f}:d={fade_out}")
     run([FF, "-y", "-loop", "1", "-r", "30", "-i", png, "-t", f"{dur:.3f}",
          "-vf", vf, *V_ENC, "-t", f"{dur:.3f}", out])
     return out
@@ -388,20 +400,18 @@ def build(topic):
     #          sentences, sent_durs, audio_dur)
     pieces = []
 
-    # 1) chapter card (2.5s, silent, gentle drift + fade)
-    ch = kenburns_clip(wd, CARDS / f"chapter-{topic['ep'].lower()}.png", 2.5,
-                       "chapter", z0=1.0, z1=1.03, fade=0.4)
+    # 1) chapter card (2.5s, silent, static + fade — NO zoom on text, it jitters)
+    ch = card_clip(wd, CARDS / f"chapter-{topic['ep'].lower()}.png", 2.5, "chapter")
     pieces.append(("card", "chapter", ch, silence(wd, 2.5, "chapter"),
                    [], [], 2.5))
 
-    # 2) agenda card (narrated, gentle drift)
+    # 2) agenda card (narrated, static + fade)
     a_sents, a_durs, a_aud, a_len = seg_audio(wd, AGENDA[tid], "agenda")
-    ag = kenburns_clip(wd, CARDS / f"agenda-{topic['ep'].lower()}.png", a_len,
-                       "agenda", z0=1.0, z1=1.03, fade=0.4)
+    ag = card_clip(wd, CARDS / f"agenda-{topic['ep'].lower()}.png", a_len,
+                   "agenda", 0.3)
     pieces.append(("card", "agenda", ag, a_aud, a_sents, a_durs, a_len))
 
     # 3) per-segment
-    card_i = 0
     for seg in topic["segments"]:
         sid = seg["id"]
         sents, durs, aud, alen = seg_audio(wd, seg["narration"], sid)
@@ -420,17 +430,11 @@ def build(topic):
             print(f"  {sid}: terminal clip {vpath.name} "
                   f"({target:.1f}s from {vdur:.1f}s)", flush=True)
         elif sid in STILL_CARD:
-            png, mode = STILL_CARD[sid]
-            # every card drifts gently so nothing sits perfectly static;
-            # 'static' cards alternate zoom direction, 'kenburns' cards drift more.
-            if mode == "static":
-                z0, z1 = (1.0, 1.035) if card_i % 2 == 0 else (1.035, 1.0)
-            else:
-                z0, z1 = (1.0, 1.06)
-            card_i += 1
-            vid = kenburns_clip(wd, CARDS / png, target, sid, z0=z0, z1=z1)
-            print(f"  {sid}: still card {png} ({mode}, drift {z0}->{z1}, "
-                  f"{target:.1f}s)", flush=True)
+            png, _mode = STILL_CARD[sid]
+            # ALL cards render static+fade — zoompan drift jitters on text
+            # (integer-pixel rounding), so text cards never zoom. See card_clip.
+            vid = card_clip(wd, CARDS / png, target, sid)
+            print(f"  {sid}: still card {png} (static, {target:.1f}s)", flush=True)
         else:
             ss = max(0.0, sc["start"] - OFFSET)
             dur = (sc["end"] - OFFSET) - ss

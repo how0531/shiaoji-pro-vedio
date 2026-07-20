@@ -2483,6 +2483,361 @@ def a_chart_trigger_modes(page, r, seg):
     return None
 
 
+# ─────────────── 進10 選擇權策略損益圖 handlers ───────────────
+# opt-payoff 面板全程 client-side 結算試算，不送任何單（安全）。模擬腿的
+# 履約價/口數/權利金全部手動輸入。非交易日無串流 → 無現價虛線，屬正常。
+
+def _payoff_panel(page):
+    return page.locator("[class*='panel']").filter(has_text="結算損益試算").last
+
+
+def _payoff_add_leg(page, r, side, right, strike, prem):
+    """在 sim row 加一隻模擬腿。right: 'C'|'P'|'F'（F 時無履約價、權利金欄=成交價）。"""
+    po = _payoff_panel(page)
+    try:
+        sbtn = po.get_by_role("button", name=("買" if side == "Buy" else "賣")).last
+        r.move_to(sbtn, hold=0.3)
+        sbtn.click(timeout=4000)
+        time.sleep(0.3)
+    except Exception:
+        pass
+    try:
+        po.locator("select").last.select_option(value=right)   # sim row 的下拉
+        time.sleep(0.3)
+    except Exception:
+        pass
+    try:
+        if right != "F":
+            si = po.get_by_placeholder("履約價").last
+            r.move_to(si, hold=0.2)
+            si.fill("")
+            si.type(str(strike), delay=55)
+        pi = po.get_by_placeholder("成交價" if right == "F" else "權利金").last
+        r.move_to(pi, hold=0.2)
+        pi.fill("")
+        pi.type(str(prem), delay=55)
+        time.sleep(0.4)
+        addb = po.get_by_role("button", name="＋模擬").last
+        r.move_to(addb, hold=0.35)
+        addb.click(timeout=5000)
+        time.sleep(1.2)
+    except Exception:
+        pass
+
+
+def _payoff_frame_canvas(page, r, label, region="tl"):
+    """金框標註 payoff canvas 的一個區域：tl=左上(max/min)、left=左半(地板)、
+    right=右半(封頂)。"""
+    po = _payoff_panel(page)
+    box = live_bbox(po.locator("canvas").first)
+    if not box:
+        return None
+    if region == "tl":
+        b = {"x": box["x"] + 8, "y": box["y"] + 8,
+             "width": box["width"] * 0.30, "height": box["height"] * 0.24}
+    elif region == "left":
+        b = {"x": box["x"] + 8, "y": box["y"] + box["height"] * 0.45,
+             "width": box["width"] * 0.42, "height": box["height"] * 0.45}
+    else:
+        b = {"x": box["x"] + box["width"] * 0.55, "y": box["y"] + box["height"] * 0.10,
+             "width": box["width"] * 0.42, "height": box["height"] * 0.45}
+    r.gold_frame(b, label)
+    r.move_xy(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2, hold=0.8)
+    return b
+
+
+def a_open_payoff(page, r, seg):
+    """p10-1 — 開選擇權損益圖面板，金框頂部「結算損益試算」警語。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.dismiss()
+    r.add_panel("選擇權損益圖")
+    po = _payoff_panel(page)
+    r.center(po)
+    r.mark()
+    _until(r, base, tgt, 0.55)
+    warn = po.get_by_text("結算損益試算", exact=False).first
+    wb = live_bbox(warn) if warn.count() else None
+    if wb:
+        r.gold_frame(wb, "")   # 空標籤：面板標題就在框上方，文字標籤會疊字（QC 抓過）
+        r.move_xy(wb["x"] + wb["width"] / 2, wb["y"] + wb["height"] / 2, hold=1.0)
+    _until(r, base, tgt, 0.95)
+    r.clear_frames()
+    return None
+
+
+def a_sim_long_call(page, r, seg):
+    """p10-2 — 買一口 Call 42600 @200，看 hockey-stick 曲線與 max/min。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.mark()
+    _until(r, base, tgt, 0.12)
+    _payoff_add_leg(page, r, "Buy", "C", 42600, 200)
+    _until(r, base, tgt, 0.68)
+    _payoff_frame_canvas(page, r, "max / min", "tl")
+    _until(r, base, tgt, 0.95)
+    r.clear_frames()
+    return None
+
+
+def a_sim_bull_spread(page, r, seg):
+    """p10-3 — 加賣 Call 42800 @120 → 多頭價差（兩端封平）。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.mark()
+    _until(r, base, tgt, 0.12)
+    _payoff_add_leg(page, r, "Sell", "C", 42800, 120)
+    _until(r, base, tgt, 0.55)
+    _payoff_frame_canvas(page, r, "上檔封頂", "right")
+    _until(r, base, tgt, 0.95)
+    r.clear_frames()
+    return None
+
+
+def a_sim_protective_put(page, r, seg):
+    """p10-5 — 清空舊腿 → 買期貨 42600 ＋ 買 Put 42400 @150 → 左側地板。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    po = _payoff_panel(page)
+    r.mark()
+    _until(r, base, tgt, 0.18)
+    for _ in range(6):                              # 移除全部舊模擬腿
+        xs = po.locator("[class*='legRemove']")
+        if xs.count() == 0:
+            break
+        try:
+            r.move_to(xs.first, hold=0.25)
+            xs.first.click(timeout=4000)
+            time.sleep(0.6)
+        except Exception:
+            break
+    _payoff_add_leg(page, r, "Buy", "F", None, 42600)
+    _until(r, base, tgt, 0.55)
+    _payoff_add_leg(page, r, "Buy", "P", 42400, 150)
+    _until(r, base, tgt, 0.78)
+    _payoff_frame_canvas(page, r, "下檔地板", "left")
+    _until(r, base, tgt, 0.95)
+    r.clear_frames()
+    return None
+
+
+def a_sim_covered_call(page, r, seg):
+    """p10-7 — 移除 Put（保留期貨）→ 賣 Call 43000 @130 → 右側封頂收租。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    po = _payoff_panel(page)
+    r.mark()
+    _until(r, base, tgt, 0.15)
+    xs = po.locator("[class*='legRemove']")        # Put 是最後加入的一列
+    if xs.count():
+        try:
+            r.move_to(xs.last, hold=0.25)
+            xs.last.click(timeout=4000)
+            time.sleep(0.6)
+        except Exception:
+            pass
+    _payoff_add_leg(page, r, "Sell", "C", 43000, 130)
+    _until(r, base, tgt, 0.62)
+    _payoff_frame_canvas(page, r, "封頂換權利金", "right")
+    _until(r, base, tgt, 0.95)
+    r.clear_frames()
+    return None
+
+
+# ─────────────── 進12 基本面與融資維持率（誠實版）handlers ───────────────
+# 只做 client-side 檢視：排行榜模式/複選、籌碼卡、自選清單增刪、帳務風險指標。
+# 全程不送單。非交易日排行可能為空/上一交易日快照 → 旁白已用條件句。
+
+def a_scanner_modes(page, r, seg):
+    """p12-1 — 依序點 漲幅/跌幅/量/額 四種排行模式。
+    QC FIX: 之前 scoped 到 filter(has_text=排行榜).last 抓到只含標題的內層容器
+    → 按鈕 count()=0 → 靜默跳過（畫面全程沒點）。改用 page 全域 exact 按鈕名
+    （a_pick_stock 已驗證可行），每點一顆等資料重載、列表真的重排。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.dismiss()
+    r.mark()
+    _until(r, base, tgt, 0.38)
+    for mode, until in (("漲幅", 0.52), ("跌幅", 0.66), ("量", 0.78), ("額", 0.90)):
+        btn = page.get_by_role("button", name=mode, exact=True).first
+        if btn.count():
+            try:
+                r.move_to(btn, hold=0.35)
+                btn.click(timeout=4000)
+                time.sleep(1.2)                    # 讓排行資料重載、列表重排
+            except Exception:
+                pass
+        _until(r, base, tgt, until)
+    return None
+
+
+def a_scanner_multi(page, r, seg):
+    """p12-2 — 複選：做多/放空切換＋三個門檻輸入。QC FIX：全域 exact 按鈕名＋
+    [class*='scanner'] input（進8 w-1 已驗證），確保複選介面真的展開。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.mark()
+    multi = page.get_by_role("button", name="複選", exact=True).first
+    if multi.count():
+        try:
+            r.move_to(multi, hold=0.4)
+            multi.click(timeout=4000)
+            time.sleep(1.0)
+        except Exception:
+            pass
+    _until(r, base, tgt, 0.30)
+    for name in ("放空", "做多"):                    # 示範切換、停在做多
+        b = page.get_by_role("button", name=name, exact=True).first
+        if b.count():
+            try:
+                r.move_to(b, hold=0.35)
+                b.click(timeout=4000)
+                time.sleep(0.7)
+            except Exception:
+                pass
+    _until(r, base, tgt, 0.52)
+    inputs = page.locator("[class*='scanner'] input")
+    for i, v in zip(range(min(inputs.count(), 3)), ["2", "5", "1"]):
+        try:
+            el = inputs.nth(i)
+            r.move_to(el, hold=0.2)
+            el.fill("")
+            el.type(v, delay=70)
+            time.sleep(0.3)
+        except Exception:
+            pass
+    _until(r, base, tgt, 0.95)
+    return None
+
+
+def a_chips_open(page, r, seg):
+    """p12-4 — 開籌碼資訊面板，金框掃過 融資成數/融券成數/融資餘額/融券餘額。
+    QC FIX：移除「可借券源」（非交易時段該卡不渲染，之前金框標到面板下方
+    空白處）；加面板邊界防呆——bbox 超出面板範圍就不畫框。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.dismiss()
+    r.add_panel("籌碼資訊")
+    cp = page.locator("[class*='panel']").filter(has_text="融資成數").last
+    r.center(cp)
+    r.mark()
+    pb = live_bbox(cp)
+    _until(r, base, tgt, 0.30)
+    for lab, until in (("融資成數", 0.50), ("融券成數", 0.63),
+                       ("融資餘額", 0.76), ("融券餘額", 0.88)):
+        card = cp.locator("[class*='statCard']").filter(has_text=lab).first
+        b = live_bbox(card) if card.count() else None
+        # 邊界防呆：卡片必須真的落在面板可視範圍內且有高度
+        ok = (b and b["height"] > 8 and pb
+              and pb["y"] - 4 <= b["y"] <= pb["y"] + pb["height"])
+        if ok:
+            r.gold_frame(b, lab)
+            r.move_xy(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2, hold=0.6)
+        _until(r, base, tgt, until)
+        r.clear_frames()
+    _until(r, base, tgt, 0.95)
+    return None
+
+
+def _wl_row(page, code):
+    """自選清單裡 code 那一列（draggable row 祖先）。找不到回 None。"""
+    cell = page.get_by_text(code, exact=True).first
+    if cell.count() == 0:
+        return None
+    row = cell.locator("xpath=ancestor::*[@draggable='true'][1]")
+    return row if row.count() else None
+
+
+def _wl_remove(page, r, code, show=False):
+    """hover 該列 → 點『從清單移除』（列內 scope，不會誤刪別列）。"""
+    row = _wl_row(page, code)
+    if row is None:
+        return False
+    try:
+        row.scroll_into_view_if_needed(timeout=3000)
+        time.sleep(0.4)
+        row.hover(timeout=3000)                    # X 鈕 hover 才浮現
+        time.sleep(0.6)
+        rm = row.locator("button[title='從清單移除']").first
+        if rm.count():
+            if show:
+                r.move_to(rm, hold=0.4)
+            rm.click(timeout=4000)
+            time.sleep(1.0)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def a_watchlist_build(page, r, seg):
+    """p12-6 — 自選清單：搜代碼加入(1301) → 顯示該列 → 點叉移除（狀態還原）。
+    QC FIX：(1) 上一輪殘留的 1301 先靜默清掉；(2) 加入後把該列捲到可視並金框，
+    觀眾看得到「真的加進來了」；(3) 移除鈕改列內 scope（之前點到第一列的鈕
+    且未 hover → 靜默失敗、清單多了一檔）；(4) 移除小線圖橋段（非交易時段
+    不一定渲染，說了畫面沒有就是錯配）。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.dismiss()
+    r.scroll_top()
+    _wl_remove(page, r, "1301")                    # 前置清理（不入鏡重點）
+    time.sleep(0.5)
+    r.mark()
+    _until(r, base, tgt, 0.12)
+    inp = page.get_by_placeholder("股票、期貨或指數", exact=False).first
+    if inp.count():
+        try:
+            r.move_to(inp, hold=0.3)
+            inp.click(timeout=4000)
+            inp.type("1301", delay=90)
+            time.sleep(1.0)
+            sug = page.locator("[class*='suggestRow']").first
+            if sug.count():
+                r.move_to(sug, hold=0.3)
+                sug.click(timeout=4000)
+            else:
+                page.keyboard.press("Enter")
+            time.sleep(1.2)
+        except Exception:
+            pass
+    _until(r, base, tgt, 0.40)
+    row = _wl_row(page, "1301")                    # 讓觀眾看到新列
+    if row is not None:
+        try:
+            row.scroll_into_view_if_needed(timeout=3000)
+            time.sleep(0.5)
+            b = live_bbox(row)
+            if b:
+                r.gold_frame(b, "加進來了")
+                r.move_xy(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2,
+                          hold=1.0)
+        except Exception:
+            pass
+    _until(r, base, tgt, 0.62)
+    r.clear_frames()
+    _wl_remove(page, r, "1301", show=True)         # 入鏡示範移除（清單回 15）
+    _until(r, base, tgt, 0.95)
+    return None
+
+
+def a_account_risk(page, r, seg):
+    """p12-7 — 帳務分頁，金框「風險指標」卡（期貨保證金健康度，當維持率比喻）。"""
+    tgt = est_dur(seg["narration"])
+    base = r.t()
+    r.dismiss()
+    _account_tab(page, r)
+    r.mark()
+    _until(r, base, tgt, 0.35)
+    card = _stat_card(page, "風險指標")
+    b = live_bbox(card) if card.count() else None
+    if b:
+        r.gold_frame(b, "風險指標（比喻維持率）")
+        r.move_xy(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2, hold=1.2)
+    _until(r, base, tgt, 0.92)
+    r.clear_frames()
+    return bbox_dict(b) if b else None
+
+
 ACTIONS = {
     "hold": a_hold,
     "sinopac_shots": a_sinopac_shots,
@@ -2569,6 +2924,18 @@ ACTIONS = {
     "grid_buy_setup": a_grid_buy_setup,
     "grid_arm_follow": a_grid_arm_follow,
     "chart_trigger_modes": a_chart_trigger_modes,
+    # 進10 選擇權策略損益圖
+    "open_payoff": a_open_payoff,
+    "sim_long_call": a_sim_long_call,
+    "sim_bull_spread": a_sim_bull_spread,
+    "sim_protective_put": a_sim_protective_put,
+    "sim_covered_call": a_sim_covered_call,
+    # 進12 基本面與融資維持率（誠實版）
+    "scanner_modes": a_scanner_modes,
+    "scanner_multi": a_scanner_multi,
+    "chips_open": a_chips_open,
+    "watchlist_build": a_watchlist_build,
+    "account_risk": a_account_risk,
 }
 
 

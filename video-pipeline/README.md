@@ -7,7 +7,9 @@
 | `topics_spec.py` | 每一集的分鏡腳本：段落 id、動作、旁白（旁白↔畫面的對齊契約） |
 | `record-topics.py` | Playwright 錄影器：驅動 live app（模擬環境）逐段實錄，2560×1440、虛擬游標、金框標註 |
 | `generate-cards.py` | 章節卡/大綱卡/觀念卡產生器（永豐配色、雅黑粗標/正黑內文/Barlow 數字） |
-| `assemble3.py` | 組裝器：每段旁白 edge-tts 配音、逐段對時、卡片動態、字幕燒錄、片頭片尾淡入淡出 |
+| `assemble3.py` | 組裝器：逐句 TTS（內容雜湊快取）、逐段對時、靜態卡+fade、字幕燒錄、BGM 混音、首尾淡入淡出 |
+| `qc-tools.py` | 檢核工具：Whisper 轉寫 vs 預期旁白、逐格像素差抖動偵測、預期旁白輸出 |
+| `qc-precompute.py` | 全系列證據檔：一次轉寫 16 支＋量測所有卡片段抖動 |
 
 用法（需先起 shioaji 模擬 server 與 app dev server）：
 

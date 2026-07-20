@@ -54,6 +54,8 @@ class Rec:
     def jump(self, code):
         """⌘K jump to a symbol (also demos the hotkey on video)."""
         self.dismiss()
+        self.page.locator("body").click()  # 確保頁面本體獲得聚焦
+        time.sleep(0.5)
         self.page.keyboard.press("Control+KeyK")
         time.sleep(0.8)
         self.page.keyboard.type(code, delay=90)

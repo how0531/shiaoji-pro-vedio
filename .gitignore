@@ -27,9 +27,8 @@ src-tauri/gen/schemas/
 .claude/
 # 未遮罩的原始素材（含個資，絕不上傳）
 *.orig.mp4
-# 第一代舊產出（已被 T1-T7 / 進階系列取代，僅留本機）
-video-assets/成片/
-video-assets/footage/
+# 本機封存（第一代舊產出、含個資之未遮罩原始素材）
+_archive/
 
 # Python cache
 __pycache__/
