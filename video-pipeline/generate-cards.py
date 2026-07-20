@@ -291,16 +291,88 @@ CARDS["card-p7-dist"] = card_html("""
     <div class="step"><div class="no">2</div><div class="txt">該 <b>分散</b></div></div>
   </div>
 </div>""")
-# 進8 w-6 平倉觀念＋帳務含費卡
+# 進8 w-6 平倉觀念＋帳務含費卡（R1-A1：補真實算式＋損益兩平＋持有級成本）
 CARDS["card-p8-close"] = card_html("""
 <div class="card">
-  <h1 style="font-size:56px">平倉結算：看「淨」損益</h1>
-  <h2>真正賺多少 ＝ 扣掉手續費和證交稅之後</h2>
-  <div class="steps">
-    <div class="step"><div class="no">1</div><div class="txt">買、賣各一趟 <b>手續費</b></div></div>
-    <div class="step"><div class="no">2</div><div class="txt">賣出還有 <b>證交稅</b></div></div>
+  <h1 style="font-size:52px">平倉看「淨」損益：要漲多少才回本？</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">例</div><div class="txt">買 <b>1,000 股 @ 100 元</b> ＝ 成本 100,000</div></div>
+    <div class="step"><div class="no">＋</div><div class="txt">手續費 0.1425%（買＋賣，最低 20 元）＋ 賣出證交稅 0.3%</div></div>
+    <div class="step"><div class="no">＝</div><div class="txt">來回成本 ≈ <b>585 元</b> → 要漲約 <b>0.59% 才損益兩平</b></div></div>
+    <div class="step"><div class="no">持</div><div class="txt">存股另計：<b>股利所得稅</b>、單筆股利≥2萬扣 <b>二代健保 2.11%</b></div></div>
   </div>
-  <div class="small">本金小，成本容易吃掉小賺 — 一筆要賺得夠多才划算</div>
+  <div class="small">券商多有手續費折讓；本金小，成本更容易吃掉小賺 — 一筆要賺得夠多才划算</div>
+</div>""")
+# R1-A2 跳動單位（台股 tick）
+CARDS["card-p6-tick"] = card_html("""
+<div class="card">
+  <h1 style="font-size:54px">跳動單位：掛錯價會變廢單</h1>
+  <h2>不同價位，最小跳動不一樣（上市櫃普通股）</h2>
+  <div class="steps tight">
+    <div class="step"><div class="no">1</div><div class="txt">未滿 10 元 → <b>0.01</b>　·　10–50 元 → <b>0.05</b></div></div>
+    <div class="step"><div class="no">2</div><div class="txt">50–100 → <b>0.1</b>　·　100–500 → <b>0.5</b></div></div>
+    <div class="step"><div class="no">3</div><div class="txt">500–1000 → <b>1</b>　·　1000 以上 → <b>5</b></div></div>
+  </div>
+  <div class="small">例：51 元的股票不能掛 51.53（要 51.5 或 51.6），掛錯就被退成廢單</div>
+</div>""")
+# R1-A3 零股規則
+CARDS["card-p6-odd"] = card_html("""
+<div class="card">
+  <h1 style="font-size:56px">零股怎麼掛才不會被退</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">1</div><div class="txt"><b>盤中零股</b> 9:00–13:30：每 3 分鐘集合競價，最少 1 股</div></div>
+    <div class="step"><div class="no">2</div><div class="txt"><b>盤後零股</b> 13:40–14:30：一次集合競價</div></div>
+    <div class="step"><div class="no">3</div><div class="txt">零股只能 <b>限價、ROD</b>（不能市價、不能 IOC/FOK）</div></div>
+    <div class="step"><div class="no">4</div><div class="txt">下單前先在「單位」切到 <b>零股</b>，別用整股規則掛</div></div>
+  </div>
+  <div class="small">小資最常用零股 — 記住這幾點，第一單就不會踩雷</div>
+</div>""")
+# R1-A4 括號單 OCO
+CARDS["card-t4-bracket"] = card_html("""
+<div class="card">
+  <div class="epnum">下單面板　·　<span class="n">括號單</span></div>
+  <h1 style="font-size:54px">停損停利保護：進場就綁好出場</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">1</div><div class="txt">進場單成交後，<b>自動掛一組停損＋停利</b>（OCO：一邊成交、另一邊自動撤）</div></div>
+    <div class="step"><div class="no">2</div><div class="txt">紀律的一半 — 進場同時就決定好停損停利</div></div>
+    <div class="step"><div class="no">⚠</div><div class="txt">和圖上觸價一樣是 <b>本機端監控</b>：關掉程式、斷線就不會觸發</div></div>
+  </div>
+  <div class="small">真正重要的停損，別完全交給本機端 — 長天期請用桌面版或程式單</div>
+</div>""")
+# R1-A5 快捷鍵速查表
+CARDS["card-a5-hotkeys"] = card_html("""
+<div class="card">
+  <h1 style="font-size:56px">快捷鍵速查</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">⌘K</div><div class="txt">搜尋跳轉：輸入代碼或中文股名，整個終端連動過去</div></div>
+    <div class="step"><div class="no">B/S</div><div class="txt">下單面板切 <b>買進 / 賣出</b> 方向</div></div>
+    <div class="step"><div class="no">Esc</div><div class="txt">連按兩次 ＝ <b>全部撤單</b>（先跳提醒、再按一次執行）</div></div>
+    <div class="step"><div class="no">閃</div><div class="txt">閃電下單：點買量=限價買、點賣量=限價賣、點自己的單=刪單</div></div>
+  </div>
+  <div class="small">改量/改價/一鍵平倉目前用面板按鈕操作；熱鍵以官方文件為準</div>
+</div>""")
+# R1-A6 殖利率/配息/填息（P12 存股再平衡）
+CARDS["card-p12-yield"] = card_html("""
+<div class="card">
+  <h1 style="font-size:54px">存股最在意的：殖利率與填息</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">1</div><div class="txt"><b>現金殖利率</b> ＝ 每股現金股利 ÷ 股價（買在越低、殖利率越高）</div></div>
+    <div class="step"><div class="no">2</div><div class="txt"><b>除息</b>當天股價會扣掉股利往下調，不是真的跌</div></div>
+    <div class="step"><div class="no">3</div><div class="txt"><b>填息</b>：股價漲回除息前，才是真正把股利賺到手</div></div>
+    <div class="step"><div class="no">→</div><div class="txt">這些數字 web 版沒有，看 <b>公開資訊觀測站</b> 或存股網站</div></div>
+  </div>
+  <div class="small">誠實提醒：高殖利率不等於好，要看填息能力與配息穩定度</div>
+</div>""")
+# R1-A7 基差/追蹤誤差（P10 避險風險）
+CARDS["card-p10-basis"] = card_html("""
+<div class="card">
+  <h1 style="font-size:52px">用台指避個股：兩個誤差別忽略</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">1</div><div class="txt"><b>基差風險</b>：期貨價 ≠ 現貨指數，到期前會有價差波動</div></div>
+    <div class="step"><div class="no">2</div><div class="txt"><b>追蹤誤差</b>：你的持股 ≠ 大盤，個股走勢和指數不一定同步</div></div>
+    <div class="step"><div class="no">→</div><div class="txt">用大盤工具避個股，只能避「大盤系統性風險」，避不掉個股自己的事</div></div>
+  </div>
+  <div class="small">別過度信任避險 — 部位越偏離大盤，避險效果越打折</div>
 </div>""")
 # 進8 w-7 收尾卡
 CARDS["card-p8-outro"] = card_html("""

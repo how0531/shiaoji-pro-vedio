@@ -105,8 +105,15 @@ STILL_CARD = {
     "a-6": ("card-p7-maint.png", "static"),          # 融資維持率觀念
     "a-7": ("card-p7-dist.png", "kenburns"),         # 資產分布收尾（App 非交易日不渲染）
     # 進8 一鏡到底
-    "w-6": ("card-p8-close.png", "static"),          # 平倉含費觀念
+    "w-6": ("card-p8-close.png", "static"),          # 平倉含費觀念（R1:補算式）
     "w-7": ("card-p8-outro.png", "kenburns"),        # 一鏡到底收尾
+    # R1 優化輪新增卡
+    "o-8": ("card-p6-tick.png", "static"),           # 跳動單位
+    "o-9": ("card-p6-odd.png", "static"),            # 零股規則
+    "t4-b": ("card-t4-bracket.png", "static"),       # 括號單 OCO
+    "a5-9": ("card-a5-hotkeys.png", "static"),       # 快捷鍵速查表
+    "p10-6b": ("card-p10-basis.png", "static"),      # 基差/追蹤誤差
+    "p12-3b": ("card-p12-yield.png", "static"),      # 殖利率/填息
     # 進9 分批鋪單與到價觸發
     "g-1": ("card-p9-batch.png", "static"),          # 為什麼要分批
     "g-5": ("card-p9-riskline.png", "static"),       # 鋪單風控紅線
