@@ -155,11 +155,15 @@ class R:
                   border:'3px solid '+gold, borderRadius:'8px',
                   boxShadow:'0 0 0 1px rgba(0,0,0,.35)'});
                 if (label) {
+                  // 深色底膠囊：標籤疊到鄰近 UI 文字時仍可讀、不變成疊字
+                  //（QC 抓過「融資成數」標籤壓到「正常」的化妝性問題）
                   const t = document.createElement('div');
                   t.textContent = label;
-                  Object.assign(t.style, {position:'absolute', top:'-30px', left:'0',
+                  Object.assign(t.style, {position:'absolute', top:'-34px', left:'0',
                     font:'19px "Microsoft JhengHei",sans-serif', color:gold,
-                    whiteSpace:'nowrap', textShadow:'0 1px 2px rgba(0,0,0,.8)'});
+                    whiteSpace:'nowrap', padding:'2px 10px', borderRadius:'999px',
+                    background:'rgba(10,18,32,.92)',
+                    boxShadow:'0 0 0 1px rgba(217,164,91,.45)'});
                   d.appendChild(t);
                 }
                 (document.body||document.documentElement).appendChild(d);
