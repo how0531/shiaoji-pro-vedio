@@ -627,6 +627,67 @@ CARDS["card-p12-recap"] = card_html("""
   <div class="rlead">看盤在 web，深度研究換工具 — 誠實分工，不被誤導</div>
 </div>""")
 
+# ═══════════ R2 優化輪新增卡 ═══════════
+# R2-5 選擇權基礎（買賣權/權利金定義）
+CARDS["card-opt-basics"] = card_html("""
+<div class="card">
+  <h1 style="font-size:56px">選擇權，先懂這四個字</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">買權</div><div class="txt">用約定價格「<b>買進</b>」的權利（Call）</div></div>
+    <div class="step"><div class="no">賣權</div><div class="txt">用約定價格「<b>賣出</b>」的權利（Put）</div></div>
+    <div class="step"><div class="no">權利金</div><div class="txt"><b>買方付</b>、<b>賣方收</b>；買方擁有權利、賣方負履約義務</div></div>
+    <div class="step"><div class="no">到期</div><div class="txt">對你有利就履約，不利就放棄 → <b>權利金拿不回來</b></div></div>
+  </div>
+  <div class="small">履約價 ＝ 事先約定好的那個買賣價格</div>
+</div>""")
+# R2-2 選擇權買賣方風險（正確性缺口）
+CARDS["card-opt-risk"] = card_html("""
+<div class="card warn">
+  <h1 style="font-size:52px">⚠ 選擇權：買方會歸零，賣方風險大</h1>
+  <h2 style="font-size:38px; line-height:1.7">
+    <b>買方</b>（買 Call／買 Put）：最多賠掉權利金，但時間價值會流失，<br>
+    到期價外 ＝ <b style="color:#ff6b5e">權利金 100% 歸零</b><br>
+    <b>賣方</b>（賣 Call／賣 Put）：先收權利金，但風險大、<b>要繳保證金</b>，<br>
+    不利時可能被 <b style="color:#ff6b5e">強制平倉、甚至超額虧損</b>
+  </h2>
+  <div class="small">新手先從買方、且小口數練起 — 裸賣方不是新手該碰的</div>
+</div>""")
+# R2-6 K 棒怎麼看
+CARDS["card-t3-kbar"] = card_html("""
+<div class="card">
+  <h1 style="font-size:56px">一根 K 棒怎麼看</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">紅</div><div class="txt">收盤 <b>比開盤高</b> → 紅棒（台股紅＝漲）</div></div>
+    <div class="step"><div class="no">綠</div><div class="txt">收盤 <b>比開盤低</b> → 綠棒（台股綠＝跌）</div></div>
+    <div class="step"><div class="no">身</div><div class="txt">粗的實體 ＝ 開盤到收盤的範圍</div></div>
+    <div class="step"><div class="no">線</div><div class="txt">上下細線（影線）＝ 這段時間內摸到的 <b>最高、最低價</b></div></div>
+  </div>
+  <div class="small">一根 K 棒 ＝ 一個時間單位（1分/5分/日…）的開高低收</div>
+</div>""")
+# R2-8 掛單怎麼變成交（五檔心智模型）
+CARDS["card-t3-orderbook"] = card_html("""
+<div class="card">
+  <h1 style="font-size:54px">掛單怎麼變成交</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">1</div><div class="txt">市場上一排人 <b>掛買</b>（委買）、一排人 <b>掛賣</b>（委賣）</div></div>
+    <div class="step"><div class="no">2</div><div class="txt"><b>五檔</b> ＝ 最接近的五個買價與五個賣價，各排多少量</div></div>
+    <div class="step"><div class="no">3</div><div class="txt">買價 ≥ 賣價、價錢對上 → <b>成交</b>（真的買到/賣到）</div></div>
+    <div class="step"><div class="no">4</div><div class="txt">你掛的價還沒對上 → 排在委託裡等，這叫 <b>委託成功</b>（還沒成交）</div></div>
+  </div>
+  <div class="small">委買量 vs 委賣量的比例，就是「買賣力道」</div>
+</div>""")
+# R2-9 漲停跌停
+CARDS["card-p6-limit"] = card_html("""
+<div class="card">
+  <h1 style="font-size:56px">漲停 / 跌停：一天的天花板與地板</h1>
+  <div class="steps tight">
+    <div class="step"><div class="no">1</div><div class="txt">台股一支股票，一天最多漲或跌 <b>10%</b></div></div>
+    <div class="step"><div class="no">2</div><div class="txt">漲到上限 ＝ <b>漲停</b>；跌到下限 ＝ <b>跌停</b></div></div>
+    <div class="step"><div class="no">3</div><div class="txt">掛的價 <b>超過漲跌停</b> → 直接被退成 <b>廢單</b></div></div>
+  </div>
+  <div class="small">下單面板的「漲停 / 跌停」欄，就是今天你能掛的價格上下界</div>
+</div>""")
+
 with sync_playwright() as p:
     b = p.chromium.launch()
     # viewport in 1920×1080 design units × dsf 4/3 → 2560×1440 screenshots

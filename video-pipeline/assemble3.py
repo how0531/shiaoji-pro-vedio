@@ -114,6 +114,12 @@ STILL_CARD = {
     "a5-9": ("card-a5-hotkeys.png", "static"),       # 快捷鍵速查表
     "p10-6b": ("card-p10-basis.png", "static"),      # 基差/追蹤誤差
     "p12-3b": ("card-p12-yield.png", "static"),      # 殖利率/填息
+    # R2 優化輪新增卡
+    "t7-1b": ("card-opt-basics.png", "static"),      # 選擇權基礎（買賣權/權利金）
+    "t7-6": ("card-opt-risk.png", "static"),         # 選擇權買賣方風險
+    "o-7b": ("card-p6-limit.png", "static"),         # 漲停跌停
+    "t3-2b": ("card-t3-kbar.png", "static"),         # K 棒怎麼看
+    "t3-5b": ("card-t3-orderbook.png", "static"),    # 掛單怎麼變成交
     # 進9 分批鋪單與到價觸發
     "g-1": ("card-p9-batch.png", "static"),          # 為什麼要分批
     "g-5": ("card-p9-riskline.png", "static"),       # 鋪單風控紅線

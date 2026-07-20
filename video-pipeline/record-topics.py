@@ -2108,14 +2108,14 @@ def a_place_order(page, r, seg):
             time.sleep(0.8)
         except Exception:
             pass
-    _fill_price(page, r, "230")                    # 限價（在 2317 漲跌停帶內、未口播）
+    _fill_price(page, r, "2400")                   # 限價（2330 參考2470/漲停2715 帶內）
     qty = page.locator(
         "xpath=//span[starts-with(text(),'數量')]/following::input[1]")
     if qty.count():
         try:
             r.move_to(qty.first, hold=0.3)
             qty.first.fill("")
-            qty.first.type("200", delay=90)        # 零股股數（未口播）
+            qty.first.type("80", delay=90)         # 零股股數（20萬約買 80 股）
             time.sleep(0.7)
         except Exception:
             pass
@@ -2325,6 +2325,14 @@ def a_pick_stock(page, r, seg):
                 time.sleep(2.4)
             except Exception:
                 pass
+    # B1 FIX: pin the rest of the episode to 2330 (台積電) so the 算量/下單
+    # 數字對得上螢幕、且零股範例「本金<一張」成立（QC 抓過 230 超漲停、
+    # 2000股=2整張的矛盾）。
+    try:
+        r.jump("2330")
+        time.sleep(1.8)
+    except Exception:
+        pass
     _until(r, base, tgt, 0.95)
     return None
 
