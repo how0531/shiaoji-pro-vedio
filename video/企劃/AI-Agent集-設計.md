@@ -1,6 +1,6 @@
 # AI Agent 特別集 · 設計（進階系列外掛）
 
-> 使用者指定「特別設計一集」＋「完整做幾個實作」。實作已完成並實測可跑（見 `ai-agent-demos/`）。
+> 使用者指定「特別設計一集」＋「完整做幾個實作」。實作已完成並實測可跑（見 `video/agent-demos/`）。
 
 ## 先講清楚的製作限制
 
@@ -21,7 +21,7 @@ AI Agent 是 **Shioaji Pro 桌面版專屬的閉源模組**——開源 Web 版�
 
 ## 三個實作（已完成、實測對模擬環境跑過）
 
-`ai-agent-demos/`：`agent1_premarket_scan.py`、`agent2_bracket_agent.py`、`agent3_position_monitor.py`（＋`agent_common.py` 登入、`README.md`、實測輸出 `run1/2/3.txt`）。用官方 Shioaji Python SDK、`simulation=True`、帳號遮蔽。
+`video/agent-demos/`：`agent1_premarket_scan.py`、`agent2_bracket_agent.py`、`agent3_position_monitor.py`（＋`agent_common.py` 登入、`README.md`、實測輸出 `run1/2/3.txt`）。用官方 Shioaji Python SDK、`simulation=True`、帳號遮蔽。
 
 ## 怎麼把這集做出來
 

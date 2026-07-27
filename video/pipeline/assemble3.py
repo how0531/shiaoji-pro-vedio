@@ -156,7 +156,7 @@ TERM_VIDEO = {
 }
 # Segments whose picture is an EXTERNAL video (change B: real SinoPac footage,
 # PII already masked, already 1920×1080). Retimed to the narration length.
-SINOPAC = Path(r"c:\Users\How\OneDrive\桌面\Shiaoji pro\video-assets\sinopac-shots")
+SINOPAC = Path(r"c:\Users\How\OneDrive\桌面\Shiaoji pro\video\素材\sinopac-shots")
 VIDEO_SEG = {"t1-2": SINOPAC / "sinopac-t1-2.mp4"}
 # Topics that get an outro CTA card appended (silent) after the last segment.
 OUTRO = {"t7-options": "outro-cta.png"}

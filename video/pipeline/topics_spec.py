@@ -13,7 +13,7 @@
 # on TXFR1 (futures keep prior-session data); order demo uses 2317 (clean
 # history; price typed on-screen, NOT spoken, so re-records stay truthful).
 
-SINOPAC_SHOTS_DIR = r"c:\Users\How\OneDrive\桌面\Shiaoji pro\video-assets\sinopac-shots"
+SINOPAC_SHOTS_DIR = r"c:\Users\How\OneDrive\桌面\Shiaoji pro\video\素材\sinopac-shots"
 # expected files (user-provided screenshots; blur PII before use):
 #   01-menu.png  (新理財網登入後，右上姓名選單展開：個人服務 → API管理)
 #   02-api-page.png (API 管理頁：金鑰列表 + 新增 API Key 鈕 + 下載憑證鈕)
