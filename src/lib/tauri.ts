@@ -942,6 +942,26 @@ export async function openLatestRelease() {
     }
 }
 
+// 外部連結（新聞原文等）一律丟給系統瀏覽器 —— 在 webview 裡直接導航會把
+// 整個交易終端換掉，盤中等於斷線
+export async function openExternalUrl(url: string) {
+    if (!url) return;
+    if (!isTauri) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+    }
+    try {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(url);
+    } catch (e) {
+        notify({
+            kind: 'err',
+            title: '無法開啟連結',
+            body: e instanceof Error ? e.message : String(e),
+        });
+    }
+}
+
 // ---- tray events ----
 
 export async function listenTrayEvents(onOpenServerManager: () => void) {

@@ -58,6 +58,36 @@ export const stepBtn = style({
     ':hover': { color: vars.color.foreground },
 });
 
+export const amountGroup = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '2px',
+});
+
+export const amountBtn = style({
+    fontFamily: vars.font.body,
+    fontSize: '0.64rem',
+    color: vars.color.mutedForeground,
+    background: vars.color.inset,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    padding: '2px 5px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.1s',
+    ':hover': {
+        color: vars.color.accent,
+        borderColor: vars.color.accent,
+        background: vars.color.panelRaised,
+    },
+    // 金額不足一張/一口時停用（不靜默補成 1 單位而超支）
+    ':disabled': {
+        opacity: 0.35,
+        cursor: 'not-allowed',
+    },
+});
+
+
 const armBase = style({
     flex: 1,
     fontFamily: vars.font.display,

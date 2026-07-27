@@ -1,0 +1,205 @@
+// src/components/news-digest.tsx — 今日焦點面板
+//
+// 各家新聞 → 彙整重點訊息 → 列出個股清單（見 lib/news-digest.ts）。
+// 排行列＝當天被新聞提及最多的個股（附類股與即時漲跌），點列展開該股
+// 當日頭條，點代號 chip 則跟排行榜/熱力圖一樣連動整個終端。
+
+import { useCallback, useState } from 'react';
+import { usePoll } from '../hooks/use-poll';
+import { fetchDigest, type Digest } from '../lib/news-digest';
+import { openExternalUrl } from '../lib/tauri';
+import * as styles from './news-digest.css';
+
+const REFRESH_MS = 60000; // 與 news.ts 的來源快取 TTL 對齊
+
+function fmtTime(at: number): string {
+    if (!at) return '—';
+    const d = new Date(at);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(
+        d.getMinutes(),
+    ).padStart(2, '0')}`;
+}
+
+function fmtPct(rate: number | undefined): string {
+    if (rate === undefined || Number.isNaN(rate)) return '—';
+    const sign = rate > 0 ? '+' : '';
+    return `${sign}${rate.toFixed(2)}%`;
+}
+
+function pctKind(rate: number | undefined): 'up' | 'down' | 'flat' {
+    if (rate === undefined || Number.isNaN(rate) || rate === 0) return 'flat';
+    return rate > 0 ? 'up' : 'down';
+}
+
+export function NewsDigest({ onPick }: { onPick?: (code: string) => void }) {
+    const poll = usePoll<Digest>(
+        useCallback(() => fetchDigest(), []),
+        REFRESH_MS,
+    );
+    const digest = poll.data;
+    const [expanded, setExpanded] = useState<string | null>(null);
+
+    const maxMentions = digest?.stocks[0]?.mentions ?? 1;
+    const allFailed =
+        !!digest && digest.failed.length > 0 && digest.totalNews === 0;
+
+    return (
+        <div className={styles.wrap}>
+            <div className={styles.list}>
+                {!digest && (
+                    <div className={styles.notice}>
+                        {poll.error ? (
+                            <>
+                                <span>彙整失敗</span>
+                                <span>{poll.error}</span>
+                                <button
+                                    className={styles.retryBtn}
+                                    onClick={poll.refresh}
+                                >
+                                    重試
+                                </button>
+                            </>
+                        ) : (
+                            '彙整今日新聞…'
+                        )}
+                    </div>
+                )}
+                {allFailed && (
+                    <div className={styles.notice}>
+                        <span>新聞來源連不上</span>
+                        <span>
+                            {import.meta.env.DEV
+                                ? '各家新聞站都沒開放 CORS，dev 需經 vite proxy（/news/*）'
+                                : '瀏覽器版受 CORS 限制，桌面版可直接抓取'}
+                        </span>
+                        <button
+                            className={styles.retryBtn}
+                            onClick={poll.refresh}
+                        >
+                            重試
+                        </button>
+                    </div>
+                )}
+                {digest && !allFailed && digest.stocks.length === 0 && (
+                    <div className={styles.notice}>
+                        今日新聞中尚未偵測到個股
+                    </div>
+                )}
+                {digest?.stocks.map((s, i) => (
+                    <div key={s.code}>
+                        <button
+                            className={styles.rankRow}
+                            title={`展開 ${s.code} ${s.name} 的當日頭條`}
+                            onClick={() =>
+                                setExpanded(
+                                    expanded === s.code ? null : s.code,
+                                )
+                            }
+                        >
+                            <span className={styles.rankNum}>{i + 1}</span>
+                            <span
+                                className={styles.stockChip}
+                                role='button'
+                                title={`切換到 ${s.code} ${s.name}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onPick?.(s.code);
+                                }}
+                            >
+                                {s.code}
+                                {s.name !== s.code && (
+                                    <span className={styles.stockChipName}>
+                                        {s.name}
+                                    </span>
+                                )}
+                            </span>
+                            {s.sector && (
+                                <span className={styles.sectorTag}>
+                                    {s.sector}
+                                </span>
+                            )}
+                            <span
+                                className={styles.pct[pctKind(s.changeRate)]}
+                            >
+                                {fmtPct(s.changeRate)}
+                            </span>
+                            <span
+                                className={styles.mentionWrap}
+                                title={`今日 ${s.mentions} 則新聞提及`}
+                            >
+                                <span className={styles.mentionBarTrack}>
+                                    <span
+                                        className={styles.mentionBarFill}
+                                        style={{
+                                            display: 'block',
+                                            width: `${Math.round(
+                                                (s.mentions / maxMentions) *
+                                                    100,
+                                            )}%`,
+                                        }}
+                                    />
+                                </span>
+                                <span className={styles.mentionCount}>
+                                    {s.mentions}
+                                </span>
+                            </span>
+                        </button>
+                        {expanded === s.code && (
+                            <div className={styles.itemList}>
+                                {s.items.map((it) => (
+                                    <div
+                                        key={it.id}
+                                        className={styles.itemRow}
+                                    >
+                                        <span className={styles.time}>
+                                            {fmtTime(it.publishAt)}
+                                        </span>
+                                        <span className={styles.sourceTag}>
+                                            {it.sourceLabel}
+                                        </span>
+                                        {it.url ? (
+                                            <button
+                                                className={styles.title}
+                                                title='開啟原文'
+                                                onClick={() =>
+                                                    void openExternalUrl(
+                                                        it.url,
+                                                    )
+                                                }
+                                            >
+                                                {it.title}
+                                            </button>
+                                        ) : (
+                                            <span
+                                                className={styles.titleFlat}
+                                            >
+                                                {it.title}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            <div className={styles.footer}>
+                <span>
+                    {digest
+                        ? `今日 ${digest.totalNews} 則 · 焦點 ${digest.stocks.length} 檔` +
+                          ` · ${fmtTime(digest.generatedAt)} 更新`
+                        : ''}
+                </span>
+                {digest && digest.failed.length > 0 && (
+                    <span
+                        className={styles.warn}
+                        title={`抓取失敗：${digest.failed.join('、')}`}
+                    >
+                        {digest.failed.length} 個來源異常
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}

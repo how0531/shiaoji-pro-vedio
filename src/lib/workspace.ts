@@ -25,6 +25,8 @@ export type BlockType =
     | 'grid'
     | 'heatmap'
     | 'optpnl'
+    | 'news'
+    | 'digest'
     | 'backtest'
     | 'assistant';
 
@@ -185,6 +187,18 @@ export const BLOCK_META: Record<
         pinnable: false,
         singleton: true,
         defaultSize: { w: 8, h: 13, minW: 6, minH: 9 },
+    },
+    news: {
+        label: '財經新聞',
+        pinnable: true,
+        singleton: false,
+        defaultSize: { w: 7, h: 12, minW: 4, minH: 6 },
+    },
+    digest: {
+        label: '今日焦點',
+        pinnable: false,
+        singleton: true,
+        defaultSize: { w: 7, h: 12, minW: 5, minH: 6 },
     },
     backtest: {
         label: '策略回測',

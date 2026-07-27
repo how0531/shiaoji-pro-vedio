@@ -27,6 +27,8 @@ import { ChipsCard } from './components/chips-card';
 import { ComboTicket } from './components/combo-ticket';
 import { DebugPanel } from './components/debug-panel';
 import { GridTicket } from './components/grid-ticket';
+import { NewsDigest } from './components/news-digest';
+import { NewsFeed } from './components/news-feed';
 import { NoticeCenter } from './components/notice-center';
 import { FeatureGate } from './components/feature-gate';
 import { OptPayoff } from './components/opt-payoff';
@@ -92,6 +94,8 @@ const POPOUT_TYPES: ReadonlySet<string> = new Set([
     'pnl',
     'replay',
     'depthmap',
+    'news',
+    'digest',
 ]);
 
 const popoutQuery = new URLSearchParams(window.location.search);
@@ -247,6 +251,10 @@ function BlockBody({
             );
         case 'heatmap':
             return <SectorHeatmap onPick={onSelectCode} />;
+        case 'news':
+            return <NewsFeed contract={contract} onPick={onSelectCode} />;
+        case 'digest':
+            return <NewsDigest onPick={onSelectCode} />;
         case 'backtest': {
             const BtPanel = backtestModule?.Panel;
             return (
@@ -340,7 +348,11 @@ function BlockView(props: BlockViewProps) {
                         ? () =>
                               void openPopout(
                                   block.type,
-                                  contract?.code ?? null,
+                                  // 今日焦點是全市場面板，別把當前商品帶進
+                                  // 標題（會顯示成「今日焦點 · 2330」）
+                                  block.type === 'digest'
+                                      ? null
+                                      : (contract?.code ?? null),
                               )
                         : undefined
                 }
@@ -400,6 +412,17 @@ function PopoutView({
         // 下單面板等連動面板跟著動（issue #1: T 字要同時連動下單面板）
         body = <OptionChain onPick={broadcastSelectCode} />;
     else if (type === 'combo') body = <ComboTicket />;
+    // 新聞不需要商品也能看；點個股 chip 同樣連動主視窗
+    else if (type === 'news')
+        body = (
+            <NewsFeed
+                contract={contract ?? null}
+                onPick={broadcastSelectCode}
+            />
+        );
+    // 今日焦點是全市場面板，同樣不需要商品；點代號連動主視窗
+    else if (type === 'digest')
+        body = <NewsDigest onPick={broadcastSelectCode} />;
     else if (
         contract?.security_type === 'IND' &&
         indexBlockMessage(type)

@@ -24,6 +24,7 @@ import { notify, placeQuickOrder } from '../lib/trade';
 import type { ContractInfo } from '../lib/types/contract';
 import { ACTIVE_ORDER_STATUSES, type Action, type Trade } from '../lib/types/order';
 import type { Position } from '../lib/types/portfolio';
+import { contractMultiplier } from '../lib/utils/contract-cost';
 import { fmtInt, fmtPrice, fmtSigned } from '../lib/utils/format';
 import { roundToTick, stepPrice } from '../lib/utils/ticksize';
 import * as styles from './flash-order.css';
@@ -32,6 +33,13 @@ const ROW_H = 22; // must match row height in flash-order.css.ts
 const EDGE = 2; // auto-recenter when last price gets this close to the edge
 
 const keyOf = (p: number) => p.toFixed(2);
+
+const AMOUNT_PRESETS = [
+    { label: '10萬', value: 100_000 },
+    { label: '20萬', value: 200_000 },
+    { label: '50萬', value: 500_000 },
+    { label: '100萬', value: 1_000_000 },
+];
 
 interface RowProps {
     price: number;
@@ -213,11 +221,13 @@ export function FlashOrder({
     const onOrdersChangedRef = useRef(onOrdersChanged);
     onOrdersChangedRef.current = onOrdersChanged;
 
-    // reset on symbol change
+    // reset on symbol change — qty 一併歸 1，否則金額鈕在低價股換算出的
+    // 大量（例如 50 張）會原封不動套到下一檔（50 口台指期）
     useEffect(() => {
         setAnchor(null);
         setFollow(true);
         setArmed(false);
+        setQty(1);
     }, [contract.code]);
 
     // safety: drop out of armed mode the moment the feed isn't LIVE so a
@@ -577,6 +587,27 @@ export function FlashOrder({
         return n;
     }, [myOrders]);
 
+    const isFutures =
+        contract.security_type === 'FUT' || contract.security_type === 'OPT';
+    const lotMultiplier = isFutures ? contractMultiplier(contract) : 1000;
+    // last 可能是 0/NaN（無報價），用 > 0 過濾才不會讓 NaN 穿透到數量
+    const curPrice = last && last > 0 ? last : contract.reference || 0;
+    // 換算基準＝契約價值（股票 價格×1000、期權 價格×乘數）。期貨實際只
+    // 需繳保證金，所以這是保守估計：以名目值算出的口數一定不會超買。
+    const singleLotValue = curPrice * lotMultiplier;
+    // 交易所單筆上限：股票 499 張、期貨/選擇權 100 口
+    const qtyCap = isFutures ? 100 : 499;
+
+    // 買不起一個單位就回 0 —— 按鈕會停用，不能靜默補成 1 單位
+    // （100 萬點在單張 105 萬的千金股上，補 1 張就是超支 5%）
+    const calcQtyFromAmount = useCallback(
+        (amount: number) => {
+            if (!(singleLotValue > 0)) return 0;
+            return Math.min(Math.floor(amount / singleLotValue), qtyCap);
+        },
+        [singleLotValue, qtyCap],
+    );
+
     return (
         <div className={styles.wrap}>
             <div className={styles.controls}>
@@ -602,6 +633,33 @@ export function FlashOrder({
                 >
                     ＋
                 </button>
+                <div
+                    className={styles.amountGroup}
+                    title={`點擊依金額換算${isFutures ? '口數（以契約名目價值計，非保證金）' : '張數'}`}
+                >
+                    {AMOUNT_PRESETS.map((p) => {
+                        const calculatedQty = calcQtyFromAmount(p.value);
+                        const unitName = isFutures ? '口' : '張';
+                        const lotText = `單${unitName}約 ${fmtInt(Math.round(singleLotValue))} 元`;
+                        return (
+                            <button
+                                key={p.label}
+                                className={styles.amountBtn}
+                                disabled={calculatedQty < 1}
+                                title={
+                                    !(singleLotValue > 0)
+                                        ? `${p.label}：無報價，無法換算`
+                                        : calculatedQty < 1
+                                          ? `${p.label} 不足一${unitName}（${lotText}）`
+                                          : `金額 ${p.label} → ${calculatedQty} ${unitName}（現價 ${fmtPrice(curPrice)} / ${lotText}）`
+                                }
+                                onClick={() => setQty(calculatedQty)}
+                            >
+                                {p.label}
+                            </button>
+                        );
+                    })}
+                </div>
                 <button
                     className={styles.armBtn[armed ? 'on' : 'off']}
                     disabled={!live}
