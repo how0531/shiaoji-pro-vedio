@@ -7,17 +7,36 @@ import { useSyncExternalStore } from 'react';
 import { ensureContract } from './contracts-cache';
 import { onAnyTick } from './stream';
 import { notify, placeQuickOrder } from './trade';
+import { nextPeak, trailHit, trailStopPrice } from './trail';
 import type { Action } from './types/order';
 
 export interface TriggerOrder {
     id: string;
     code: string; // display code (matches quote-store code)
     condition: 'below' | 'above'; // fire when last <= / >= price
-    price: number;
+    price: number; // fixed triggers: the trigger price. trail: initial reference
     action: Action;
     quantity: number;
-    kind: 'stop' | 'take' | 'alert';
+    kind: 'stop' | 'take' | 'alert' | 'trail';
     group?: string; // OCO group — when one fires, siblings are cancelled
+    // trailing stop: exit action Sell trails the high (long protection),
+    // Buy trails the low (short protection); stop = peak × (1 ∓ trailPct%)
+    trailPct?: number;
+}
+
+// live peak per trailing trigger — kept in memory, not persisted (a restart
+// re-seeds the peak from the first tick seen, which ≈ current price)
+const peaks = new Map<string, number>();
+
+function updatePeak(id: string, action: Action, price: number): number {
+    const cur = peaks.get(id);
+    if (cur === undefined) {
+        peaks.set(id, price);
+        return price;
+    }
+    const next = nextPeak(action, cur, price);
+    if (next !== cur) peaks.set(id, next);
+    return next;
 }
 
 const STORAGE_KEY = 'sj-pro-triggers';
@@ -56,20 +75,27 @@ export function addTrigger(t: Omit<TriggerOrder, 'id'>): TriggerOrder {
             ? '⛔ 停損單已掛'
             : trigger.kind === 'take'
               ? '🎯 停利單已掛'
-              : '🔔 警示已設';
+              : trigger.kind === 'trail'
+                ? '🧵 移動停損已掛'
+                : '🔔 警示已設';
+    const act = trigger.action === 'Buy' ? '買' : '賣';
+    const cond = trigger.condition === 'below' ? '≤' : '≥';
     notify({
         kind: 'info',
         title: kindLabel,
         body:
             trigger.kind === 'alert'
-                ? `${trigger.code} 觸價 ${trigger.condition === 'below' ? '≤' : '≥'} ${trigger.price} 時通知`
-                : `${trigger.code} 觸價 ${trigger.condition === 'below' ? '≤' : '≥'} ${trigger.price} → 市價${trigger.action === 'Buy' ? '買' : '賣'} ${trigger.quantity}${trigger.group ? '（OCO）' : ''}`,
+                ? `${trigger.code} 觸價 ${cond} ${trigger.price} 時通知`
+                : trigger.kind === 'trail'
+                  ? `${trigger.code} 移動停損 ${trigger.trailPct}%（現價 ${trigger.price}）→ 回撤觸價市價${act} ${trigger.quantity}`
+                  : `${trigger.code} 觸價 ${cond} ${trigger.price} → 市價${act} ${trigger.quantity}${trigger.group ? '（OCO）' : ''}`,
     });
     return trigger;
 }
 
 export function removeTrigger(id: string) {
     triggers = triggers.filter((t) => t.id !== id);
+    peaks.delete(id);
     persist();
 }
 
@@ -119,7 +145,12 @@ async function fire(t: TriggerOrder, lastPrice: number) {
         });
         notify({
             kind: 'ok',
-            title: t.kind === 'stop' ? '⛔ 停損觸發' : '🎯 停利觸發',
+            title:
+                t.kind === 'stop'
+                    ? '⛔ 停損觸發'
+                    : t.kind === 'trail'
+                      ? '🧵 移動停損觸發'
+                      : '🎯 停利觸發',
             body: `${t.code} @${lastPrice} → 市價${t.action === 'Buy' ? '買' : '賣'} ${t.quantity} (${trade.status.status})`,
         });
     } catch (e) {
@@ -143,6 +174,13 @@ export function startTriggerEngine() {
         if (!Number.isFinite(price)) return;
         for (const t of triggers) {
             if (t.code !== tick.code) continue;
+            if (t.kind === 'trail') {
+                if (!t.trailPct || t.trailPct <= 0) continue;
+                const peak = updatePeak(t.id, t.action, price);
+                const stop = trailStopPrice(t.action, peak, t.trailPct);
+                if (trailHit(t.action, price, stop)) void fire(t, price);
+                continue;
+            }
             if (
                 (t.condition === 'below' && price <= t.price) ||
                 (t.condition === 'above' && price >= t.price)

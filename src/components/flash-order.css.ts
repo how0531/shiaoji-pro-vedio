@@ -87,6 +87,49 @@ export const amountBtn = style({
     },
 });
 
+// 策略開關列（自動拆單／移動停損）
+export const stratRow = style({
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: vars.space.sm,
+    padding: `3px ${vars.space.sm}`,
+    borderBottom: `1px solid ${vars.color.border}`,
+    flexShrink: 0,
+    fontSize: '0.62rem',
+    color: vars.color.mutedForeground,
+});
+
+export const stratCheck = style({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    cursor: 'pointer',
+    userSelect: 'none',
+});
+
+export const stratCheckbox = style({
+    width: '0.85rem',
+    height: '0.85rem',
+    accentColor: vars.color.accent,
+    cursor: 'pointer',
+    margin: 0,
+});
+
+export const stratNumInput = style({
+    width: '2.4rem',
+    fontFamily: vars.font.mono,
+    fontSize: '0.66rem',
+    textAlign: 'center',
+    color: vars.color.foreground,
+    background: vars.color.inset,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    padding: '1px 3px',
+    outline: 'none',
+    ':focus': { borderColor: vars.color.accent },
+    ':disabled': { opacity: 0.4, cursor: 'not-allowed' },
+});
 
 const armBase = style({
     flex: 1,
