@@ -41,6 +41,9 @@ export interface NewsItem {
     publishAt: number; // epoch ms，0 = 來源沒給時間
     stocks: NewsStock[]; // 目前只有鉅亨與 MOPS 帶結構化個股
     keywords: string[];
+    // 利多/利空（規則層，見 news-sentiment.ts）。抓取時不填，今日焦點
+    // 彙整時逐則補上並藉物件快取自然記憶，其他面板可無視此欄位
+    sentiment?: import('./news-sentiment').Sentiment;
 }
 
 const CNYES_API = 'https://api.cnyes.com/media/api/v1/newslist/category/';

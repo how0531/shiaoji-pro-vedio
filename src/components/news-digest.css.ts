@@ -16,19 +16,42 @@ export const list = style({
     overflowY: 'auto',
 });
 
-// 排行列：整列可點展開該股當日頭條
+// 排行列：整列可點展開該股當日頭條。底色深淺＝新聞熱度（見 heatFill）
 export const rankRow = style({
+    position: 'relative',
     display: 'flex',
-    alignItems: 'center',
-    gap: vars.space.xs,
     width: '100%',
-    padding: `4px ${vars.space.sm}`,
+    padding: `5px ${vars.space.sm}`,
     background: 'transparent',
     border: 'none',
     borderBottom: `1px solid ${vars.color.border}`,
     cursor: 'pointer',
     textAlign: 'left',
+    overflow: 'hidden',
     ':hover': { background: vars.color.muted },
+});
+
+// 熱度底條：整列由左往右的淺色填滿，寬度＝該股提及數 / 榜首提及數
+export const heatFill = style({
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 0,
+    background: vars.color.accent,
+    opacity: 0.16,
+    pointerEvents: 'none',
+});
+
+// 內容層：疊在熱度底條之上
+export const rowInner = style({
+    position: 'relative',
+    zIndex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.xs,
+    flex: 1,
+    minWidth: 0,
 });
 
 export const rankNum = style({
@@ -90,37 +113,40 @@ export const pct = styleVariants({
     flat: [pctBase, { color: vars.color.flat }],
 });
 
-// 提及次數＋量條（相對於榜首的比例）
-export const mentionWrap = style({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    width: '3.6rem',
-    flexShrink: 0,
-});
-
-export const mentionBarTrack = style({
-    flex: 1,
-    height: '3px',
-    borderRadius: '2px',
-    background: vars.color.muted,
-    overflow: 'hidden',
-});
-
-export const mentionBarFill = style({
-    height: '100%',
-    background: vars.color.accent,
-    opacity: 0.75,
-});
-
-export const mentionCount = style({
+// 利多/利空（規則層分類，台股慣例紅多綠空）：排行列的聚合小計
+const sentiBase = style({
     fontFamily: vars.font.mono,
     fontSize: '0.6rem',
     fontVariantNumeric: 'tabular-nums',
-    color: vars.color.mutedForeground,
-    width: '1.2rem',
-    textAlign: 'right',
+    whiteSpace: 'nowrap',
     flexShrink: 0,
+});
+
+export const senti = styleVariants({
+    bull: [sentiBase, { color: vars.color.up }],
+    bear: [sentiBase, { color: vars.color.down }],
+});
+
+// 展開列表的逐則「多/空」標籤（中性不掛，減少視覺噪音）
+const sentiTagBase = style({
+    fontFamily: vars.font.body,
+    fontSize: '0.58rem',
+    lineHeight: 1.4,
+    borderRadius: vars.radius.sm,
+    padding: '0 3px',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+});
+
+export const sentiTag = styleVariants({
+    bull: [
+        sentiTagBase,
+        { color: vars.color.up, border: `1px solid ${vars.color.up}` },
+    ],
+    bear: [
+        sentiTagBase,
+        { color: vars.color.down, border: `1px solid ${vars.color.down}` },
+    ],
 });
 
 // 展開後的該股當日頭條

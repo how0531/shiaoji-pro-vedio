@@ -89,58 +89,68 @@ export function NewsDigest({ onPick }: { onPick?: (code: string) => void }) {
                     <div key={s.code}>
                         <button
                             className={styles.rankRow}
-                            title={`展開 ${s.code} ${s.name} 的當日頭條`}
+                            title={`展開 ${s.code} ${s.name} 的當日頭條 · 今日 ${s.mentions} 則提及`}
                             onClick={() =>
                                 setExpanded(
                                     expanded === s.code ? null : s.code,
                                 )
                             }
                         >
-                            <span className={styles.rankNum}>{i + 1}</span>
                             <span
-                                className={styles.stockChip}
-                                role='button'
-                                title={`切換到 ${s.code} ${s.name}`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onPick?.(s.code);
+                                className={styles.heatFill}
+                                style={{
+                                    width: `${Math.round(
+                                        (s.mentions / maxMentions) * 100,
+                                    )}%`,
                                 }}
-                            >
-                                {s.code}
-                                {s.name !== s.code && (
-                                    <span className={styles.stockChipName}>
-                                        {s.name}
+                            />
+                            <span className={styles.rowInner}>
+                                <span className={styles.rankNum}>{i + 1}</span>
+                                <span
+                                    className={styles.stockChip}
+                                    role='button'
+                                    title={`切換到 ${s.code} ${s.name}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onPick?.(s.code);
+                                    }}
+                                >
+                                    {s.code}
+                                    {s.name !== s.code && (
+                                        <span
+                                            className={styles.stockChipName}
+                                        >
+                                            {s.name}
+                                        </span>
+                                    )}
+                                </span>
+                                {s.sector && (
+                                    <span className={styles.sectorTag}>
+                                        {s.sector}
                                     </span>
                                 )}
-                            </span>
-                            {s.sector && (
-                                <span className={styles.sectorTag}>
-                                    {s.sector}
-                                </span>
-                            )}
-                            <span
-                                className={styles.pct[pctKind(s.changeRate)]}
-                            >
-                                {fmtPct(s.changeRate)}
-                            </span>
-                            <span
-                                className={styles.mentionWrap}
-                                title={`今日 ${s.mentions} 則新聞提及`}
-                            >
-                                <span className={styles.mentionBarTrack}>
+                                {s.bulls > 0 && (
                                     <span
-                                        className={styles.mentionBarFill}
-                                        style={{
-                                            display: 'block',
-                                            width: `${Math.round(
-                                                (s.mentions / maxMentions) *
-                                                    100,
-                                            )}%`,
-                                        }}
-                                    />
-                                </span>
-                                <span className={styles.mentionCount}>
-                                    {s.mentions}
+                                        className={styles.senti.bull}
+                                        title={`${s.bulls} 則利多`}
+                                    >
+                                        {s.bulls}多
+                                    </span>
+                                )}
+                                {s.bears > 0 && (
+                                    <span
+                                        className={styles.senti.bear}
+                                        title={`${s.bears} 則利空`}
+                                    >
+                                        {s.bears}空
+                                    </span>
+                                )}
+                                <span
+                                    className={
+                                        styles.pct[pctKind(s.changeRate)]
+                                    }
+                                >
+                                    {fmtPct(s.changeRate)}
                                 </span>
                             </span>
                         </button>
@@ -157,6 +167,20 @@ export function NewsDigest({ onPick }: { onPick?: (code: string) => void }) {
                                         <span className={styles.sourceTag}>
                                             {it.sourceLabel}
                                         </span>
+                                        {it.sentiment === 'bullish' && (
+                                            <span
+                                                className={styles.sentiTag.bull}
+                                            >
+                                                多
+                                            </span>
+                                        )}
+                                        {it.sentiment === 'bearish' && (
+                                            <span
+                                                className={styles.sentiTag.bear}
+                                            >
+                                                空
+                                            </span>
+                                        )}
                                         {it.url ? (
                                             <button
                                                 className={styles.title}

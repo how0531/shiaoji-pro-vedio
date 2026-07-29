@@ -11,6 +11,7 @@
 // news.ts 的 newsMatchesStock），結構化來源已帶代號，字典只認股名。
 
 import { fetchNews, type FeedGroup, type NewsItem } from './news';
+import { classifySentiment } from './news-sentiment';
 import { fetchSnapshots } from './shioaji';
 import {
     loadStockCatalog,
@@ -24,6 +25,8 @@ export interface DigestStock {
     name: string;
     sector: string; // 可讀類股名，'' = 未知
     mentions: number; // 提及的新聞則數（去重後）
+    bulls: number; // 利多則數（規則層分類）
+    bears: number; // 利空則數
     latestAt: number; // 最新一則提及時間
     items: NewsItem[]; // 提及的新聞，最新在前
     close?: number; // 現價（snapshot）
@@ -101,6 +104,12 @@ async function runDigest(): Promise<Digest> {
         if (item.publishAt < dayStart.getTime()) continue;
         if (seen.has(item.id)) continue; // 同 news.ts dedupe，用 id 不用標題
         seen.add(item.id);
+        // 利多/利空逐則補上（純字串掃描 <1ms）。news.ts 的 60s 快取讓同
+        // 一物件跨輪重用，已分類過的不再重算
+        if (item.sentiment === undefined) {
+            item.sentiment = classifySentiment(item.title, item.summary)
+                .sentiment;
+        }
         today.push(item);
     }
 
@@ -193,6 +202,8 @@ async function runDigest(): Promise<Digest> {
             name: detail?.name || r.name || r.code,
             sector: detail?.category ? sectorLabel(detail.category) : '',
             mentions: r.items.length,
+            bulls: r.items.filter((it) => it.sentiment === 'bullish').length,
+            bears: r.items.filter((it) => it.sentiment === 'bearish').length,
             latestAt: r.latestAt,
             items: r.items,
             close: snap?.close,

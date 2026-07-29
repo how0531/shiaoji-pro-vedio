@@ -195,7 +195,7 @@ export const BLOCK_META: Record<
         defaultSize: { w: 7, h: 12, minW: 4, minH: 6 },
     },
     digest: {
-        label: '今日焦點',
+        label: '自製-今日焦點',
         pinnable: false,
         singleton: true,
         defaultSize: { w: 7, h: 12, minW: 5, minH: 6 },
