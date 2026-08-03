@@ -230,6 +230,117 @@ export const retryBtn = style({
     cursor: 'pointer',
 });
 
+// ---- 多空總覽（頂部固定區）：一眼看今天利多最強 / 利空最重是誰 ----
+
+export const overview = style({
+    flexShrink: 0,
+    borderBottom: `1px solid ${vars.color.border}`,
+    padding: `3px 0 4px`,
+});
+
+export const ovRow = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.xs,
+    padding: `2px ${vars.space.sm}`,
+    minWidth: 0,
+    overflow: 'hidden',
+});
+
+const ovLabelBase = style({
+    fontFamily: vars.font.body,
+    fontSize: '0.6rem',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+});
+
+export const ovLabel = styleVariants({
+    bull: [ovLabelBase, { color: vars.color.up }],
+    bear: [ovLabelBase, { color: vars.color.down }],
+});
+
+// 個股 chip：點了連動全終端（同排行列的 stockChip 行為），邊框帶多空色
+const ovChipBase = style({
+    fontFamily: vars.font.mono,
+    fontSize: '0.62rem',
+    background: 'transparent',
+    borderRadius: vars.radius.sm,
+    padding: '0 5px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+});
+
+export const ovChip = styleVariants({
+    bull: [
+        ovChipBase,
+        {
+            color: vars.color.up,
+            border: `1px solid ${vars.color.up}`,
+            ':hover': { background: vars.color.muted },
+        },
+    ],
+    bear: [
+        ovChipBase,
+        {
+            color: vars.color.down,
+            border: `1px solid ${vars.color.down}`,
+            ':hover': { background: vars.color.muted },
+        },
+    ],
+});
+
+export const ovChipName = style({
+    fontFamily: vars.font.body,
+    marginLeft: '3px',
+    opacity: 0.85,
+});
+
+export const ovChipCount = style({
+    fontFamily: vars.font.mono,
+    fontVariantNumeric: 'tabular-nums',
+    marginLeft: '4px',
+    opacity: 0.8,
+});
+
+// ---- 利多/利空篩選列 ----
+
+export const filterBar = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.xs,
+    padding: `3px ${vars.space.sm}`,
+    borderBottom: `1px solid ${vars.color.border}`,
+    flexShrink: 0,
+});
+
+const filterBtnBase = style({
+    fontFamily: vars.font.body,
+    fontSize: '0.6rem',
+    background: 'transparent',
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    color: vars.color.mutedForeground,
+    padding: '0 8px',
+    lineHeight: 1.7,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    ':hover': { color: vars.color.foreground },
+});
+
+export const filterBtn = styleVariants({
+    off: [filterBtnBase],
+    on: [
+        filterBtnBase,
+        {
+            color: vars.color.accent,
+            borderColor: vars.color.accent,
+            background: vars.color.accentDim,
+        },
+    ],
+});
+
 export const footer = style({
     display: 'flex',
     alignItems: 'center',

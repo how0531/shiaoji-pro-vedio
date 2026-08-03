@@ -330,7 +330,89 @@ function applySubjectHints(title: string, body: string): number {
 // 對外 API
 // --------------------------------------------------------------------------
 
-export function classifySentiment(title: string, body = ''): SentimentResult {
+// ---- 個股句級歸因 ----
+//
+// 一則新聞常同時講多檔（「台積電創高，聯電重挫」），整篇一個標籤會讓
+// 其中一檔必錯。這裡把文字切成子句，只拿「點名該股」的子句去計分。
+// 切分含逗號、不含頓號：頓號是並列共用述語（「台積電、聯電齊漲」拆開
+// 反而丟失主詞），逗號才是換敘述的邊界。
+
+const CLAUSE_SPLIT = /[。！？!?；;，,\n]+/;
+
+// 股名直接找；代碼要防「逾2330億」假命中（沿用 news.ts 的邊界寫法，
+// 不用 lookbehind：build target 含 safari13，舊 WebKit 會炸）
+function mentionsTerm(text: string, terms: string[]): boolean {
+    for (const t of terms) {
+        if (!t) continue;
+        if (/^\d{4,6}[A-Z]?$/.test(t)) {
+            if (
+                new RegExp(`(^|[^0-9])${t}([^0-9億萬點元張]|$)`).test(text)
+            ) {
+                return true;
+            }
+        } else if (text.includes(t)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// 主詞歸屬：子句若是「別人 挑戰/威脅/取代 X」，動作主詞是對手，
+// 對 X 是利空；且該子句裡的利多詞（良率提升、加碼…）描述的是挑戰者，
+// 不能算給 X。只比對股名（代碼不會這樣入句）、只往前看 8 字。
+const TARGETED_VERBS =
+    /(挑戰|威脅|超越|取代|瓜分|搶食|侵蝕|搶單|搶走|進逼|叫陣|追擊|夾擊)/;
+const TARGETED_WINDOW = 8;
+
+function isTargetedAgainst(clause: string, terms: string[]): boolean {
+    for (const t of terms) {
+        if (!t || /^\d/.test(t)) continue;
+        let idx = clause.indexOf(t);
+        while (idx >= 0) {
+            const before = clause.slice(Math.max(0, idx - TARGETED_WINDOW), idx);
+            if (TARGETED_VERBS.test(before)) return true;
+            idx = clause.indexOf(t, idx + t.length);
+        }
+    }
+    return false;
+}
+
+interface PickedClauses {
+    normal: string; // 一般計分的子句（以逗號重組）
+    targeted: number; // 「被挑戰」子句數（整句轉利空、不參與一般計分）
+}
+
+function pickClauses(text: string, terms: string[]): PickedClauses {
+    const hit = text
+        .split(CLAUSE_SPLIT)
+        .filter((c) => c.trim() && mentionsTerm(c, terms));
+    const targeted = hit.filter((c) => isTargetedAgainst(c, terms));
+    const normal = hit.filter((c) => !isTargetedAgainst(c, terms));
+    return { normal: normal.join('，'), targeted: targeted.length };
+}
+
+// 對「某一檔股票」判多空：只計入點名它的子句（標題子句照樣享有標題
+// 權重），「被挑戰」子句整句記利空。整篇都沒點名（結構化標籤才認列
+// 的）→ 退回整篇判讀。
+export function classifyStockSentiment(
+    title: string,
+    body: string,
+    terms: string[],
+): SentimentResult {
+    const t = pickClauses(title || '', terms);
+    const b = pickClauses(body || '', terms);
+    if (!t.normal && !b.normal && t.targeted === 0 && b.targeted === 0) {
+        return classifySentiment(title, body);
+    }
+    const { pos, neg } = scoreAll(t.normal, b.normal);
+    return verdict(
+        pos,
+        neg + t.targeted * TITLE_WEIGHT + b.targeted * BODY_WEIGHT,
+    );
+}
+
+// 計分核心：整篇判讀與個股句級歸因共用（勿單邊改動計分規則）
+function scoreAll(title: string, body: string): { pos: number; neg: number } {
     // 步驟 1：反轉慣用語先計分並遮蔽
     const [revPos, revNeg, mTitle, mBody] = applyReversals(
         title || '',
@@ -345,9 +427,14 @@ export function classifySentiment(title: string, body = ''): SentimentResult {
     const subjNeg = applySubjectHints(mTitle, mBody);
 
     // 匯總：利多被否定 → 計入利空；利空被否定 → 計入利多
-    const pos = posOwn + revPos + negFlip;
-    const neg = negOwn + revNeg + posFlip + subjNeg;
+    return {
+        pos: posOwn + revPos + negFlip,
+        neg: negOwn + revNeg + posFlip + subjNeg,
+    };
+}
 
+// 兩邊分數 → 判定與信心值（1.3 倍門檻，與 Python 版一致）
+function verdict(pos: number, neg: number): SentimentResult {
     let sentiment: Sentiment;
     if (pos === 0 && neg === 0) sentiment = 'neutral';
     else if (pos > neg * 1.3) sentiment = 'bullish';
@@ -360,4 +447,9 @@ export function classifySentiment(title: string, body = ''): SentimentResult {
     );
 
     return { sentiment, confidence: Math.round(confidence * 1000) / 1000 };
+}
+
+export function classifySentiment(title: string, body = ''): SentimentResult {
+    const { pos, neg } = scoreAll(title, body);
+    return verdict(pos, neg);
 }

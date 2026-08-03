@@ -11,7 +11,11 @@
 // news.ts 的 newsMatchesStock），結構化來源已帶代號，字典只認股名。
 
 import { fetchNews, type FeedGroup, type NewsItem } from './news';
-import { classifySentiment } from './news-sentiment';
+import {
+    classifySentiment,
+    classifyStockSentiment,
+    type Sentiment,
+} from './news-sentiment';
 import { fetchSnapshots } from './shioaji';
 import {
     loadStockCatalog,
@@ -25,10 +29,13 @@ export interface DigestStock {
     name: string;
     sector: string; // 可讀類股名，'' = 未知
     mentions: number; // 提及的新聞則數（去重後）
-    bulls: number; // 利多則數（規則層分類）
+    bulls: number; // 利多則數（句級歸因後、針對本檔的分類）
     bears: number; // 利空則數
     latestAt: number; // 最新一則提及時間
     items: NewsItem[]; // 提及的新聞，最新在前
+    // 與 items 對齊的「對本檔」情緒（同一則新聞對不同股票可能不同向，
+    // NewsItem.sentiment 是整篇口徑，不能拿來當個股標籤）
+    itemSentiments: Sentiment[];
     close?: number; // 現價（snapshot）
     changeRate?: number; // 漲跌幅 %（snapshot）
 }
@@ -36,6 +43,7 @@ export interface DigestStock {
 export interface Digest {
     stocks: DigestStock[];
     totalNews: number; // 當日新聞總數（跨來源去重後）
+    roundups: number; // 被排除在個股計數外的大盤綜述則數
     failed: string[]; // 抓失敗的來源標籤（沿用 news.ts 慣例）
     generatedAt: number;
 }
@@ -133,26 +141,42 @@ async function runDigest(): Promise<Digest> {
         byCode.set(code, entry);
     };
 
+    // 盤勢綜述：大盤行情文一次點名一長串個股，逐檔計數會把排行灌水。
+    // 標題像大盤文、且單篇命中 ≥4 檔 → 整篇跳過個股歸戶（新聞總數照算）
+    const ROUNDUP_TITLE = /台股|大盤|加權指數|集中市場|台指期/;
+    const ROUNDUP_MIN_STOCKS = 4;
+    let roundups = 0;
+
     for (const item of today) {
-        const structured = new Set<string>();
+        const codes = new Set<string>();
+        const candidates: { code: string; name: string }[] = [];
         for (const s of item.stocks) {
             if (!isTwCode(s.code)) continue; // 擋美股/陸股代號與指數
-            if (structured.has(s.code)) continue;
-            structured.add(s.code);
-            record(s.code, s.name, item);
+            if (codes.has(s.code)) continue;
+            codes.add(s.code);
+            candidates.push({ code: s.code, name: s.name });
         }
         const blob = `${item.title} ${item.summary} ${item.keywords.join(' ')}`;
         const allHits = dict.filter((d) => blob.includes(d.name));
         // prune 要看得到全部命中的股名（含結構化通道認列、可能不在目錄
-        // 字典裡的長名），但只 record 還沒認列的，避免同一則重複計數
+        // 字典裡的長名），但只認列還沒收的，避免同一則重複計數
         const names = [
             ...allHits.map((d) => d.name),
             ...item.stocks.map((s) => s.name).filter(Boolean),
         ];
         for (const hit of pruneSubstringHits(allHits, names, blob)) {
-            if (structured.has(hit.code)) continue;
-            record(hit.code, hit.name, item);
+            if (codes.has(hit.code)) continue;
+            codes.add(hit.code);
+            candidates.push({ code: hit.code, name: hit.name });
         }
+        if (
+            ROUNDUP_TITLE.test(item.title) &&
+            candidates.length >= ROUNDUP_MIN_STOCKS
+        ) {
+            roundups += 1;
+            continue;
+        }
+        for (const c of candidates) record(c.code, c.name, item);
     }
 
     const ranked = [...byCode.entries()]
@@ -197,15 +221,23 @@ async function runDigest(): Promise<Digest> {
     const stocks: DigestStock[] = ranked.map((r) => {
         const detail = detailsCache.get(r.code);
         const snap = snapByCode.get(r.code);
+        const name = detail?.name || r.name || r.code;
+        // 對「這一檔」逐則做句級歸因（同一則對不同股票可能不同向）；
+        // 純字串掃描 <1ms，TOP_N×每檔數十則的量級不需要快取
+        const terms = [...new Set([name, r.name, r.code].filter(Boolean))];
+        const itemSentiments = r.items.map(
+            (it) => classifyStockSentiment(it.title, it.summary, terms).sentiment,
+        );
         return {
             code: r.code,
-            name: detail?.name || r.name || r.code,
+            name,
             sector: detail?.category ? sectorLabel(detail.category) : '',
             mentions: r.items.length,
-            bulls: r.items.filter((it) => it.sentiment === 'bullish').length,
-            bears: r.items.filter((it) => it.sentiment === 'bearish').length,
+            bulls: itemSentiments.filter((x) => x === 'bullish').length,
+            bears: itemSentiments.filter((x) => x === 'bearish').length,
             latestAt: r.latestAt,
             items: r.items,
+            itemSentiments,
             close: snap?.close,
             changeRate: snap?.change_rate,
         };
@@ -214,6 +246,7 @@ async function runDigest(): Promise<Digest> {
     return {
         stocks,
         totalNews: today.length,
+        roundups,
         failed,
         generatedAt: Date.now(),
     };
