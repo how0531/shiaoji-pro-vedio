@@ -3,10 +3,12 @@ import {
     getLoaded,
     getPanelDef,
     hasUpdate,
+    initPlugins,
     installPlugin,
     loadInstalled,
     saveInstalled,
     setPluginEnabled,
+    sideloadPlugin,
     type InstalledPlugin,
 } from './store';
 import { fetchBundle, loadBundle } from './loader';
@@ -154,6 +156,98 @@ describe('setPluginEnabled：停用要同步更新 loaded[id]', () => {
 
         await setPluginEnabled('statement', false);
         expect(getLoaded('statement')).toBe('已停用');
+
+        vi.unstubAllGlobals();
+    });
+});
+
+// catalog 內 disabled:true 的外掛快照，安裝與重新啟用都要被擋下
+const CATALOG_DISABLED: StoreCatalog = {
+    apiVersion: 1,
+    plugins: [{ ...FAKE.manifest, url: 'https://example.com/statement', disabled: true }],
+};
+
+// catalog 已收錄一顆正常上架（未 disabled）的 'statement'，供 side-load
+// 冒名撞 id 測試使用
+const CATALOG_NORMAL: StoreCatalog = {
+    apiVersion: 1,
+    plugins: [CATALOG_ENTRY],
+};
+
+// 用 initPlugins 把 state.catalog 灌成指定內容（installPlugin/setPluginEnabled
+// 讀的是 state.catalog，不是呼叫端傳入的 entry 快照，要走真正的載入流程才會
+// 生效）；呼叫完就把 fetch 解除 stub，避免污染後續呼叫
+async function seedCatalog(catalog: StoreCatalog) {
+    vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(JSON.stringify(catalog), { status: 200 })),
+    );
+    await initPlugins({ onSelectCode: () => {} });
+    vi.unstubAllGlobals();
+}
+
+describe('官方下架（catalog disabled:true）強制擋下安裝與重新啟用', () => {
+    it('installPlugin：catalog 標記 disabled → 直接 throw，不下載 manifest', async () => {
+        await seedCatalog(CATALOG_DISABLED);
+
+        const fetchSpy = vi.fn();
+        vi.stubGlobal('fetch', fetchSpy);
+
+        await expect(installPlugin(CATALOG_ENTRY)).rejects.toThrow(
+            '此外掛已被官方停用',
+        );
+        expect(fetchSpy).not.toHaveBeenCalled();
+
+        vi.unstubAllGlobals();
+    });
+
+    it('setPluginEnabled(id, true)：catalog 標記 disabled → throw，不重新載入外掛', async () => {
+        saveInstalled([{ ...FAKE, enabled: false }]);
+        await seedCatalog(CATALOG_DISABLED);
+
+        await expect(setPluginEnabled('statement', true)).rejects.toThrow(
+            '此外掛已被官方停用',
+        );
+    });
+});
+
+describe('sideloadPlugin：相容性檢查與防冒名', () => {
+    it('manifest 不相容（apiVersion 過新）→ throw，不繼續抓 bundle', async () => {
+        const incompatibleManifest = { ...FAKE.manifest, apiVersion: 999 };
+        const fetchMock = vi.fn(
+            async () =>
+                new Response(JSON.stringify(incompatibleManifest), {
+                    status: 200,
+                }),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+
+        await expect(
+            sideloadPlugin('https://example.com/statement'),
+        ).rejects.toThrow(/App/);
+        // 只抓了 manifest.json 那一次，相容性沒過就不該再去抓 bundle
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        vi.unstubAllGlobals();
+    });
+
+    it('id 與官方商店重複 → throw，禁止 side-load 冒名', async () => {
+        // catalog 已收錄一顆同 id（statement）的官方外掛
+        await seedCatalog(CATALOG_NORMAL);
+
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                async () =>
+                    new Response(JSON.stringify(FAKE.manifest), {
+                        status: 200,
+                    }),
+            ),
+        );
+
+        await expect(
+            sideloadPlugin('https://example.com/statement'),
+        ).rejects.toThrow('外掛 id 與官方商店重複，禁止 side-load 冒名');
 
         vi.unstubAllGlobals();
     });

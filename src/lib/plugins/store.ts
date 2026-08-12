@@ -137,6 +137,13 @@ function withTrailingSlash(url: string): string {
     return url.endsWith('/') ? url : `${url}/`;
 }
 
+// 官方商店標記 disabled 的外掛不可安裝／重新啟用；一律查 state.catalog
+// （目前抓到的最新目錄），不信任呼叫端傳入的 entry 快照，避免用舊快照
+// 放行剛被下架的外掛
+function isDisabledInCatalog(id: string): boolean {
+    return state.catalog?.plugins.find((e) => e.id === id)?.disabled === true;
+}
+
 // saveInstalled 失敗（配額/被封鎖）時，把 panelsByPlugin 剛做的變更復原成
 // 呼叫前的樣子，避免「安裝清單沒寫入、但面板已經活著」的兩邊脫節
 function restorePanels(id: string, prev: PluginPanelDef[] | undefined) {
@@ -183,6 +190,10 @@ export async function initPlugins(bridge: {
 export async function installPlugin(
     entry: StoreCatalog['plugins'][number],
 ): Promise<void> {
+    if (isDisabledInCatalog(entry.id)) {
+        throw new Error('此外掛已被官方停用');
+    }
+
     const reason = checkCompat(entry, APP_VERSION);
     if (reason) throw new Error(reason);
 
@@ -274,6 +285,9 @@ export async function setPluginEnabled(
 ): Promise<void> {
     const current = state.installed.find((p) => p.id === id);
     if (!current) throw new Error(`外掛 ${id} 尚未安裝`);
+    if (on && isDisabledInCatalog(id)) {
+        throw new Error('此外掛已被官方停用');
+    }
 
     const nextInstalled = state.installed.map((p) =>
         p.id === id ? { ...p, enabled: on } : p,
@@ -316,6 +330,17 @@ export async function sideloadPlugin(baseUrlInput: string): Promise<void> {
         throw new Error(`side-load manifest 下載失敗（${manifestRes.status}）`);
     }
     const manifest = parseManifest(await manifestRes.json());
+    const compatReason = checkCompat(manifest, APP_VERSION);
+    if (compatReason) throw new Error(compatReason);
+
+    // side-load 的 id 不得冒充官方商店已有的外掛；例外是「重新 side-load
+    // 同一顆本來就是 sideloaded 的外掛」（更新用途），否則一律擋下
+    const existing = state.installed.find((p) => p.id === manifest.id);
+    const idInCatalog =
+        state.catalog?.plugins.some((e) => e.id === manifest.id) ?? false;
+    if (idInCatalog && !(existing && existing.sideloaded)) {
+        throw new Error('外掛 id 與官方商店重複，禁止 side-load 冒名');
+    }
 
     const bundleRes = await rawFetch(baseUrl + manifest.entry);
     if (!bundleRes.ok) {

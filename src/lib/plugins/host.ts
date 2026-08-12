@@ -16,6 +16,24 @@ declare const __APP_VERSION__: string | undefined;
 export const APP_VERSION =
     typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0-dev';
 
+// v1 spec 邊界：外掛只能查詢，不可下單。deny-list 擋掉下單／改單／刪單
+// 相關 path，get/post 共用同一份檢查；查詢類（/order/trades、
+// /order/combotrades）不在名單內，照常放行。
+const DENIED_ORDER_PATHS = [
+    '/order/place_order',
+    '/order/cancel_order',
+    '/order/update_price',
+    '/order/update_qty',
+    '/order/place_comboorder',
+    '/order/cancel_comboorder',
+];
+
+function assertAllowedPath(path: string): void {
+    if (DENIED_ORDER_PATHS.some((denied) => path.includes(denied))) {
+        throw new Error('外掛不可使用下單相關 API（v1 限查詢）');
+    }
+}
+
 function themeTokens(): ThemeTokens {
     const s = getThemeSettings();
     const c = getChartColors(s);
@@ -37,8 +55,14 @@ export function createHost(
         apiVersion: HOST_API_VERSION,
         appVersion: APP_VERSION,
         api: {
-            get: (path) => apiGet(path),
-            post: (path, body) => apiPost(path, body),
+            get: (path) => {
+                assertAllowedPath(path);
+                return apiGet(path);
+            },
+            post: (path, body) => {
+                assertAllowedPath(path);
+                return apiPost(path, body);
+            },
         },
         stream: {
             subscribe(code, cb) {
@@ -74,10 +98,11 @@ export function createHost(
             },
         },
         contracts: {
-            // resolveContract 一律 resolve 一筆 ContractInfo（查無則
-            // reject），非 brief 猜想的 nullable — 直接轉呼叫即可，
-            // Promise<ContractInfo> 可指派給 Promise<ContractInfo | null>
-            resolve: (code) => resolveContract(code),
+            // resolveContract 查無該代碼會 reject，但 PluginHost 的型別與
+            // mock host（packages/sdk/mock-host.ts）都是查無回 null，不是
+            // reject。這裡補 .catch 把 reject 轉成 null，讓外掛端不用額外
+            // try/catch 也能跟 mock host 拿到一致的語意。
+            resolve: (code) => resolveContract(code).catch(() => null),
             // fetchWarrants 簽名是 (underlyingCode, filters)，回傳
             // ContractInfo[]（非 { contracts }），結構上已滿足 WarrantInfo[]
             searchWarrants: (filters) =>

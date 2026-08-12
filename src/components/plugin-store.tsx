@@ -107,7 +107,11 @@ function PluginRow({
     error?: string;
 }) {
     const { kind, reason } = badgeOf(entry, installed, loaded);
-    const canManage = !!installed; // 已安裝（含已停用/載入失敗/官方下架）都能開關與移除
+    const canManage = !!installed; // 已安裝（含已停用/載入失敗/官方下架）都能移除
+    // 官方下架的外掛不給啟用開關：setPluginEnabled(id, true) 現在會直接
+    // throw「此外掛已被官方停用」，開關留著只會點了就跳錯誤，不如直接藏起來，
+    // 移除功能仍保留讓使用者能清掉這顆外掛
+    const showToggle = canManage && kind !== 'delisted';
     const showInstall = !installed && kind !== 'delisted';
     // installed.enabled 是防呆：badgeOf 的順序已經讓已停用優先於可更新，
     // kind === 'update' 理論上只會在啟用中出現，這裡多一層保險，避免
@@ -147,30 +151,30 @@ function PluginRow({
                         {busy ? '處理中…' : '更新'}
                     </button>
                 )}
+                {showToggle && (
+                    <button
+                        className={
+                            hud.switchTrack[
+                                installed!.enabled ? 'on' : 'off'
+                            ]
+                        }
+                        title={
+                            installed!.enabled
+                                ? '停用此外掛'
+                                : '啟用此外掛'
+                        }
+                        disabled={busy}
+                        onClick={() => onToggle(!installed!.enabled)}
+                    />
+                )}
                 {canManage && (
-                    <>
-                        <button
-                            className={
-                                hud.switchTrack[
-                                    installed!.enabled ? 'on' : 'off'
-                                ]
-                            }
-                            title={
-                                installed!.enabled
-                                    ? '停用此外掛'
-                                    : '啟用此外掛'
-                            }
-                            disabled={busy}
-                            onClick={() => onToggle(!installed!.enabled)}
-                        />
-                        <button
-                            className={styles.removeBtn}
-                            disabled={busy}
-                            onClick={onUninstall}
-                        >
-                            {busy ? '處理中…' : '移除'}
-                        </button>
-                    </>
+                    <button
+                        className={styles.removeBtn}
+                        disabled={busy}
+                        onClick={onUninstall}
+                    >
+                        {busy ? '處理中…' : '移除'}
+                    </button>
                 )}
             </div>
         </div>
