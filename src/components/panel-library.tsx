@@ -30,6 +30,7 @@ import {
     Newspaper,
     Package,
     PieChart,
+    Puzzle,
     Radio,
     Rows,
     ScrollText,
@@ -53,6 +54,7 @@ import {
     type BlockType,
     PANEL_CATEGORIES,
 } from '../lib/workspace';
+import { listLoadedPanels, usePluginsState } from '../lib/plugins/store';
 import {
     canLivePreview,
     LIVE_PREVIEW_H,
@@ -97,9 +99,14 @@ const PANEL_ICONS: Record<BlockType, LucideIcon> = {
     optpnl: AreaChart,
     backtest: FlaskConical,
     assistant: Bot,
+    plugin: Puzzle,
 };
 
-const ALL_TYPES = Object.keys(BLOCK_META) as BlockType[];
+// 'plugin' 是通用備援型別，不做為可選項目列出。動態外掛面板改由
+// pluginItems（每個外掛面板各自一筆）加進清單，見下方
+const ALL_TYPES = (Object.keys(BLOCK_META) as BlockType[]).filter(
+    (type) => type !== 'plugin',
+);
 
 function loadRecents(): BlockType[] {
     try {
@@ -124,6 +131,11 @@ interface LibraryItem {
     type: BlockType;
     // singleton already in the workspace → jump target instead of add
     existingId: string | null;
+    label: string;
+    description: string;
+    icon: LucideIcon;
+    // 動態外掛面板才有值：type 一律是 'plugin'，靠這組 id 才知道加哪一個
+    plugin?: { pluginId: string; panelKey: string };
 }
 
 export function PanelLibrary({
@@ -137,7 +149,10 @@ export function PanelLibrary({
     open: boolean;
     onClose: () => void;
     blocks: Block[];
-    onAdd: (type: BlockType) => void;
+    onAdd: (
+        type: BlockType,
+        plugin?: { pluginId: string; panelKey: string },
+    ) => void;
     onLocate: (blockId: string) => void;
     selectedCode?: string | null;
 }) {
@@ -161,21 +176,51 @@ export function PanelLibrary({
     }, [open]);
 
     const toItem = useMemo(() => {
-        return (type: BlockType): LibraryItem => ({
-            type,
-            existingId:
-                (BLOCK_META[type].singleton &&
-                    blocks.find((b) => b.type === type)?.id) ||
-                null,
-        });
+        return (type: BlockType): LibraryItem => {
+            const meta = BLOCK_META[type];
+            return {
+                type,
+                existingId:
+                    (meta.singleton &&
+                        blocks.find((b) => b.type === type)?.id) ||
+                    null,
+                label: meta.label,
+                description: meta.description,
+                icon: PANEL_ICONS[type],
+            };
+        };
     }, [blocks]);
+
+    // 動態外掛面板：每個已載入外掛的每一個面板各自一筆，全部歸在「工具」
+    // 分類。usePluginsState() 訂閱外掛載入狀態，外掛非同步載入完成時這裡
+    // 會重新讀 listLoadedPanels() 讓清單自動出現。
+    const pluginsState = usePluginsState();
+    const pluginItems = useMemo(() => {
+        void pluginsState;
+        return listLoadedPanels().map(({ pluginId, panel }): LibraryItem => {
+            const existingId = blocks.find(
+                (b) =>
+                    b.type === 'plugin' &&
+                    b.pluginId === pluginId &&
+                    b.panelKey === panel.key,
+            )?.id;
+            return {
+                type: 'plugin',
+                existingId: (panel.singleton && existingId) || null,
+                label: panel.label,
+                description: BLOCK_META.plugin.description,
+                icon: Puzzle,
+                plugin: { pluginId, panelKey: panel.key },
+            };
+        });
+    }, [blocks, pluginsState]);
 
     const trimmed = query.trim().toLowerCase();
     const searching = trimmed.length > 0;
 
     const filtered = useMemo(() => {
         if (!searching) return [];
-        return ALL_TYPES.filter((type) => {
+        const blockItems = ALL_TYPES.filter((type) => {
             const meta = BLOCK_META[type];
             return (
                 meta.label.toLowerCase().includes(trimmed) ||
@@ -183,17 +228,27 @@ export function PanelLibrary({
                 type.includes(trimmed)
             );
         }).map(toItem);
-    }, [searching, toItem, trimmed]);
+        const matchedPluginItems = pluginItems.filter(
+            (item) =>
+                item.label.toLowerCase().includes(trimmed) ||
+                item.description.toLowerCase().includes(trimmed),
+        );
+        return [...blockItems, ...matchedPluginItems];
+    }, [pluginItems, searching, toItem, trimmed]);
 
     const grouped = useMemo(
         () =>
             PANEL_CATEGORIES.map((category) => ({
                 ...category,
-                items: ALL_TYPES.filter(
-                    (type) => BLOCK_META[type].category === category.key,
-                ).map(toItem),
+                items: [
+                    ...ALL_TYPES.filter(
+                        (type) => BLOCK_META[type].category === category.key,
+                    ).map(toItem),
+                    // 外掛面板固定歸在「工具」分類尾端
+                    ...(category.key === 'tools' ? pluginItems : []),
+                ],
             })),
-        [toItem],
+        [pluginItems, toItem],
     );
 
     const recentItems = useMemo(
@@ -240,13 +295,17 @@ export function PanelLibrary({
             onClose();
             return;
         }
-        onAdd(item.type);
-        const next = [
-            item.type,
-            ...recents.filter((value) => value !== item.type),
-        ].slice(0, RECENTS_LIMIT);
-        setRecents(next);
-        saveRecents(next);
+        onAdd(item.type, item.plugin);
+        // 外掛面板全共用 type 'plugin'，記進「最近使用」會互相覆蓋、也認不出
+        // 是哪一個面板，乾脆不記（它們本來就固定列在工具分類底下，不會消失）
+        if (!item.plugin) {
+            const next = [
+                item.type,
+                ...recents.filter((value) => value !== item.type),
+            ].slice(0, RECENTS_LIMIT);
+            setRecents(next);
+            saveRecents(next);
+        }
         if (!keepOpen) onClose();
     };
 
@@ -278,11 +337,10 @@ export function PanelLibrary({
     const renderCard = (item: LibraryItem) => {
         flatIndex += 1;
         const idx = flatIndex;
-        const meta = BLOCK_META[item.type];
-        const Icon = PANEL_ICONS[item.type];
+        const Icon = item.icon;
         return (
             <button
-                key={`${idx}-${item.type}`}
+                key={`${idx}-${item.type}-${item.plugin?.pluginId ?? ''}-${item.plugin?.panelKey ?? ''}`}
                 data-idx={idx}
                 className={
                     styles.card[idx === activeIndex ? 'active' : 'normal']
@@ -294,11 +352,11 @@ export function PanelLibrary({
                     <Icon size={16} />
                 </span>
                 <span className={styles.cardText}>
-                    <span className={styles.cardTitle}>{meta.label}</span>
+                    <span className={styles.cardTitle}>{item.label}</span>
                     <span className={styles.cardDesc}>
                         {item.existingId
                             ? '已在版面中 · 點擊前往'
-                            : meta.description}
+                            : item.description}
                     </span>
                 </span>
                 {item.existingId && (
@@ -432,10 +490,10 @@ export function PanelLibrary({
                             PANEL_PREVIEWS[activeItem.type]
                         )}
                         <span className={styles.previewTitle}>
-                            {BLOCK_META[activeItem.type].label}
+                            {activeItem.label}
                         </span>
                         <span className={styles.previewDesc}>
-                            {BLOCK_META[activeItem.type].description}
+                            {activeItem.description}
                             {activeItem.existingId &&
                                 ' · 已在版面中，選取後前往'}
                         </span>

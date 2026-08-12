@@ -36,7 +36,8 @@ export type BlockType =
     | 'news'
     | 'digest'
     | 'backtest'
-    | 'assistant';
+    | 'assistant'
+    | 'plugin';
 
 export type PulseSection = 'stocks' | 'industries' | 'flow';
 export type PulseSectionWeights = Record<PulseSection, number>;
@@ -56,6 +57,9 @@ export interface Block {
     wallList?: string;
     wallCols?: number;
     wallRows?: number;
+    // type === 'plugin' 時必填：對應外掛面板（見 lib/plugins/store.ts）
+    pluginId?: string;
+    panelKey?: string;
 }
 
 export interface Workspace {
@@ -336,6 +340,16 @@ export const BLOCK_META: Record<
         pinnable: false,
         singleton: true,
         defaultSize: { w: 7, h: 14, minW: 5, minH: 9 },
+    },
+    // 通用備援：實際 label/singleton/defaultSize 於 addBlock 時從外掛面板
+    // 定義（getPanelDef）取；面板已停用或未安裝才會落回這裡的預設值
+    plugin: {
+        label: '外掛面板',
+        description: '外掛提供的面板',
+        category: 'tools',
+        pinnable: true,
+        singleton: false,
+        defaultSize: { w: 6, h: 10, minW: 3, minH: 4 },
     },
 };
 

@@ -666,4 +666,20 @@ export const PANEL_PREVIEWS: Record<BlockType, ReactNode> = {
             <rect x='8' y='54' width='52' height='14' rx='5' fill={muted} fillOpacity='0.2' />
         </Frame>
     ),
+    // 通用骨架：外掛面板的實際外觀由外掛自帶，這裡只畫拼圖狀示意
+    plugin: (
+        <Frame>
+            <path
+                d='M20 14 h20 v9 a5 5 0 0 1 0 10 v9 h-20 v-9 a5 5 0 0 0 0 -10 z'
+                fill={accent}
+                fillOpacity='0.35'
+                stroke={accent}
+                strokeOpacity='0.6'
+            />
+            <Ln x={54} y={18} w={50} o={0.5} />
+            <Ln x={54} y={28} w={40} o={0.35} />
+            <Ln x={54} y={38} w={46} o={0.35} />
+            <Ln x={20} y={54} w={84} o={0.25} />
+        </Frame>
+    ),
 };

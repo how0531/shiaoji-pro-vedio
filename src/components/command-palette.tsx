@@ -9,7 +9,11 @@ import {
 import { BLOCK_META, type BlockType } from '../lib/workspace';
 import * as styles from './command-palette.css';
 
-const PANEL_TYPES = Object.keys(BLOCK_META) as BlockType[];
+// 'plugin' 是通用備援型別（實際外掛面板改由面板庫個別列出），這裡不收錄，
+// 避免 Cmd+K 新增出一個沒有 pluginId/panelKey、永遠顯示不可用的空面板
+const PANEL_TYPES = (Object.keys(BLOCK_META) as BlockType[]).filter(
+    (type) => type !== 'plugin',
+);
 const PANEL_MATCH_LIMIT = 4;
 
 export function CommandPalette({
