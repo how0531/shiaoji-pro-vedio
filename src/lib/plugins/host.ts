@@ -55,11 +55,11 @@ export function createHost(
         apiVersion: HOST_API_VERSION,
         appVersion: APP_VERSION,
         api: {
-            get: (path) => {
+            get: async (path) => {
                 assertAllowedPath(path);
                 return apiGet(path);
             },
-            post: (path, body) => {
+            post: async (path, body) => {
                 assertAllowedPath(path);
                 return apiPost(path, body);
             },
