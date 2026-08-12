@@ -55,6 +55,10 @@ export interface WarrantInfo {
     name: string;
     call_put?: string;
     strike_price?: number;
+    // 權證到期日欄位是 expiry_date（ContractInfo 的 call_put/exercise_ratio
+    // 那一區）；delivery_date 是期貨/選擇權在用，權證回應中幾乎必為
+    // undefined。保留 delivery_date 供舊資料 fallback，不刪。
+    expiry_date?: string;
     delivery_date?: string;
 }
 
