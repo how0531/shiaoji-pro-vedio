@@ -74,6 +74,10 @@ export default defineConfig(({ mode }) => {
                     '',
             ),
             __SHIOAJI_APP_VERSION__: JSON.stringify(pkg.version ?? ''),
+            // 外掛 host（PluginHost.appVersion，src/lib/plugins/host.ts）用；
+            // 與上面的 __SHIOAJI_APP_VERSION__ 同源，分開命名避免外掛 SDK
+            // 耦合到桌面 app 內部的握手用常數
+            __APP_VERSION__: JSON.stringify(pkg.version ?? ''),
             // bundled server version（repo 根目錄 SHIOAJI_VERSION —
             // 與 CI 下載 sidecar 的同一個來源）— app 開機做版本握手
             __SHIOAJI_SERVER_VERSION__: JSON.stringify(

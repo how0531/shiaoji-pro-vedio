@@ -99,6 +99,11 @@ export function useThemeSettings(): ThemeSettings {
     );
 }
 
+// non-hook current-value read（外掛 host 等非 React 元件用）
+export function getThemeSettings(): ThemeSettings {
+    return settings;
+}
+
 // ---- chart palette (canvas needs concrete color strings) ----
 
 export interface ChartColors {

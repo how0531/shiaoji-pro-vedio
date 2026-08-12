@@ -10,6 +10,8 @@ import {
     type OrderEventReport,
 } from './order-report';
 
+export type { SseTick };
+
 export type StreamStatus = 'connecting' | 'live' | 'down';
 
 export interface ContractChangeEvent {
