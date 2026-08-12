@@ -2,10 +2,11 @@
 // 都收斂進統一設定 dialog（settings-dialog.tsx）；header 只留高頻操作：
 // 伺服器狀態、Kill Switch（一鍵鎖定/解鎖）、新增面板、閃電全開、設定。
 
-import { LayoutGrid, Lock, Settings, Unlock, Zap } from 'lucide-react';
+import { LayoutGrid, Lock, Puzzle, Settings, Unlock, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useStreamStatus } from '../hooks/use-stream';
 import { useHeaderItems } from '../lib/header-items';
+import { hasUpdate, usePluginsState } from '../lib/plugins/store';
 import { setRiskSettings, useRiskSettings } from '../lib/risk';
 import { fetchInfo } from '../lib/shioaji';
 import { maskMoney, usePrivacyMoney } from '../lib/privacy';
@@ -174,6 +175,7 @@ function FlashTilesMenu({ flashCodes }: { flashCodes: string[] }) {
 export function HudHeader({
     accBalance,
     onOpenPanelLibrary,
+    onOpenPluginStore,
     profiles,
     currentWorkspace,
     onSaveProfile,
@@ -186,6 +188,7 @@ export function HudHeader({
 }: {
     accBalance?: number;
     onOpenPanelLibrary: () => void;
+    onOpenPluginStore: () => void;
     flashCodes?: string[];
     profiles: Profile[];
     currentWorkspace: Workspace;
@@ -199,6 +202,15 @@ export function HudHeader({
     const streamStatus = useStreamStatus();
     const privMoney = usePrivacyMoney();
     const headerItems = useHeaderItems();
+    const pluginsState = usePluginsState();
+    const pluginHasUpdate = pluginsState.catalog
+        ? pluginsState.installed.some((p) => {
+              const entry = pluginsState.catalog!.plugins.find(
+                  (e) => e.id === p.id,
+              );
+              return entry ? hasUpdate(p, entry) : false;
+          })
+        : false;
     const [simulation, setSimulation] = useState<boolean | null>(null);
     const [appVer, setAppVer] = useState('');
     const [now, setNow] = useState(() => new Date());
@@ -302,6 +314,17 @@ export function HudHeader({
                     版面
                 </button>
             )}
+            <span className={styles.pluginBtnWrap}>
+                <button
+                    className={styles.resetBtn}
+                    title='外掛商店（安裝/更新/啟停/移除外掛）'
+                    onClick={onOpenPluginStore}
+                >
+                    <Puzzle size={11} style={{ verticalAlign: '-1px' }} />{' '}
+                    外掛
+                </button>
+                {pluginHasUpdate && <span className={styles.updateDot} />}
+            </span>
             {headerItems.flashAll && flashCodes.length > 0 && (
                 <FlashTilesMenu flashCodes={flashCodes} />
             )}

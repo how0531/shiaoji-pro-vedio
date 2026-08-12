@@ -286,9 +286,13 @@ export async function setPluginEnabled(
 
     if (!on) {
         panelsByPlugin.delete(id);
-        listeners.forEach((l) => l()); // panels Map 變動，通知重新讀取
+        // loaded[id] 同步標成「已停用」，PluginBlock 佔位卡與商店列表才會
+        // 顯示正確文案，而不是沿用停用前的舊字串（'ok' 或先前的錯誤原因）
+        setState({ loaded: { ...state.loaded, [id]: '已停用' } });
         return;
     }
+    // 重新啟用：activatePlugin 一定會覆寫 loaded[id] 成 'ok' 或新的錯誤原因，
+    // 蓋掉上面留下的「已停用」
     await activatePlugin({ ...current, enabled: true });
 }
 
@@ -374,4 +378,9 @@ export function listLoadedPanels(): {
 
 export function getCatalog(): StoreCatalog | null {
     return state.catalog;
+}
+
+// pluginId → 'ok' / 錯誤原因 / '已停用'（未載入過則 undefined）
+export function getLoaded(id: string): string | undefined {
+    return state.loaded[id];
 }

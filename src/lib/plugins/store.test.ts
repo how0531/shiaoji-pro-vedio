@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    getLoaded,
     getPanelDef,
     hasUpdate,
     installPlugin,
     loadInstalled,
     saveInstalled,
+    setPluginEnabled,
     type InstalledPlugin,
 } from './store';
 import { fetchBundle, loadBundle } from './loader';
@@ -131,6 +133,28 @@ describe('installPlugin：saveInstalled 失敗要 rollback panelsByPlugin', () =
         expect(getPanelDef('statement', 'test-panel')).toBeNull();
 
         setItemSpy.mockRestore();
+        vi.unstubAllGlobals();
+    });
+});
+
+describe('setPluginEnabled：停用要同步更新 loaded[id]', () => {
+    it('停用後 loaded[id] 是「已停用」（PluginBlock/商店都靠這個文案顯示）', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                async () =>
+                    new Response(JSON.stringify(FAKE.manifest), {
+                        status: 200,
+                    }),
+            ),
+        );
+
+        await installPlugin(CATALOG_ENTRY);
+        expect(getLoaded('statement')).toBe('ok');
+
+        await setPluginEnabled('statement', false);
+        expect(getLoaded('statement')).toBe('已停用');
+
         vi.unstubAllGlobals();
     });
 });

@@ -22,6 +22,7 @@ import { HudHeader } from './components/hud-header';
 import { OptionChain } from './components/option-chain';
 import { PanelLibrary } from './components/panel-library';
 import { PluginBlock } from './components/plugin-block';
+import { PluginStoreDialog } from './components/plugin-store';
 import * as libraryStyles from './components/panel-library.css';
 import {
     broadcastSelectCode,
@@ -888,6 +889,7 @@ export default function App() {
     );
 
     const [panelLibraryOpen, setPanelLibraryOpen] = useState(false);
+    const [pluginStoreOpen, setPluginStoreOpen] = useState(false);
 
     // jump-to-existing-panel from the panel library: scroll the grid cell
     // into view and pulse its outline once
@@ -1114,6 +1116,7 @@ export default function App() {
             <HudHeader
                 accBalance={balancePoll.data?.acc_balance}
                 onOpenPanelLibrary={() => setPanelLibraryOpen(true)}
+                onOpenPluginStore={() => setPluginStoreOpen(true)}
                 profiles={profiles}
                 currentWorkspace={workspace}
                 onSaveProfile={saveProfileAs}
@@ -1140,6 +1143,10 @@ export default function App() {
                 onAdd={addBlock}
                 onLocate={locateBlock}
                 selectedCode={selected?.code}
+            />
+            <PluginStoreDialog
+                open={pluginStoreOpen}
+                onClose={() => setPluginStoreOpen(false)}
             />
 
             <div className={grid.gridWrap} ref={containerRef}>

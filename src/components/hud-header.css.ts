@@ -461,6 +461,25 @@ export const resetBtn = style({
     },
 });
 
+// 「外掛」按鈕：有可更新外掛時掛一顆紅點（repo 內沒有既有的角標樣式可
+// 比照，簡單做一顆 8px 圓點貼在右上角）
+export const pluginBtnWrap = style({
+    position: 'relative',
+    display: 'inline-flex',
+});
+
+export const updateDot = style({
+    position: 'absolute',
+    top: '-3px',
+    right: '-3px',
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    background: vars.color.danger,
+    border: `1px solid ${vars.color.panel}`,
+    pointerEvents: 'none',
+});
+
 export const clock = style({
     fontFamily: vars.font.mono,
     fontSize: '0.82rem',
