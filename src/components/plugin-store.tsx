@@ -21,8 +21,10 @@ import * as styles from './plugin-store.css';
 type CatalogEntry = StoreCatalog['plugins'][number];
 
 // 徽章與可用動作各自獨立判斷：徽章反映「目前狀態」，動作反映「現在能做
-// 什麼」。可更新的外掛徽章顯示 update，但停用開關／移除仍要能操作（不用
-// 逼使用者先更新才能關閉或移除）。
+// 什麼」。已停用優先於可更新（updatePlugin 不檢查 enabled，會把已停用
+// 外掛的 activate() 跑起來、面板重新掛進 panelsByPlugin，變成「顯示已
+// 停用但程式碼在跑」的矛盾，所以已停用的外掛一律顯示「已停用」，不顯示
+// 「可更新」，也不給更新按鈕，要更新得先手動開啟）。
 type BadgeKind =
     | 'notInstalled'
     | 'installed'
@@ -38,8 +40,8 @@ function badgeOf(
 ): { kind: BadgeKind; reason?: string } {
     if (entry.disabled) return { kind: 'delisted' };
     if (!installed) return { kind: 'notInstalled' };
-    if (hasUpdate(installed, entry)) return { kind: 'update' };
     if (!installed.enabled) return { kind: 'disabled' };
+    if (hasUpdate(installed, entry)) return { kind: 'update' };
     const reason = loaded[installed.id];
     if (reason && reason !== 'ok') return { kind: 'failed', reason };
     return { kind: 'installed' };
@@ -107,7 +109,10 @@ function PluginRow({
     const { kind, reason } = badgeOf(entry, installed, loaded);
     const canManage = !!installed; // 已安裝（含已停用/載入失敗/官方下架）都能開關與移除
     const showInstall = !installed && kind !== 'delisted';
-    const showUpdate = installed && kind === 'update';
+    // installed.enabled 是防呆：badgeOf 的順序已經讓已停用優先於可更新，
+    // kind === 'update' 理論上只會在啟用中出現，這裡多一層保險，避免
+    // updatePlugin 把已停用外掛的 activate() 跑起來
+    const showUpdate = installed && installed.enabled && kind === 'update';
 
     return (
         <div className={styles.row}>
@@ -406,6 +411,8 @@ export function PluginStoreDialog({
         <div className={styles.overlay} onClick={onClose}>
             <div
                 className={styles.dialog}
+                role='dialog'
+                aria-label='外掛商店'
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className={styles.header}>

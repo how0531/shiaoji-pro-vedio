@@ -203,12 +203,15 @@ export function HudHeader({
     const privMoney = usePrivacyMoney();
     const headerItems = useHeaderItems();
     const pluginsState = usePluginsState();
+    // 跟商店徽章邏輯（plugin-store.tsx 的 badgeOf）保持一致：官方下架
+    // 或已停用的外掛不算「有更新」，紅點才不會跟商店裡實際顯示的徽章打架
     const pluginHasUpdate = pluginsState.catalog
         ? pluginsState.installed.some((p) => {
+              if (!p.enabled) return false;
               const entry = pluginsState.catalog!.plugins.find(
                   (e) => e.id === p.id,
               );
-              return entry ? hasUpdate(p, entry) : false;
+              return entry && !entry.disabled ? hasUpdate(p, entry) : false;
           })
         : false;
     const [simulation, setSimulation] = useState<boolean | null>(null);
