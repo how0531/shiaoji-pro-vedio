@@ -75,6 +75,17 @@ export const emptyHint = style({
     textAlign: 'center',
 });
 
+// 「已安裝但不在商店目錄」清單的分節標籤（side-load／catalog 抓不到時
+// 仍能管理的既有外掛）
+export const sectionLabel = style({
+    fontFamily: vars.font.display,
+    fontSize: '0.64rem',
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    color: vars.color.mutedForeground,
+    padding: `${vars.space.sm} ${vars.space.md} 0`,
+});
+
 export const row = style({
     display: 'flex',
     alignItems: 'center',

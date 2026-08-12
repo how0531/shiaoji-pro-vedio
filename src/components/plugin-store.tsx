@@ -172,6 +172,75 @@ function PluginRow({
     );
 }
 
+// 已安裝但不在 catalog 的外掛（side-load，或官方 catalog 一時抓不到／
+// 沒收錄）：沒有 catalog 來源可比對版本，不能安裝/更新，但仍要能停用/
+// 移除，否則 side-load 完全無法從商店管理，開發者模式管理流程會斷掉。
+function OrphanRow({
+    installed,
+    loaded,
+    busy,
+    onToggle,
+    onUninstall,
+    error,
+}: {
+    installed: InstalledPlugin;
+    loaded: Record<string, string>;
+    busy: boolean;
+    onToggle: (on: boolean) => void;
+    onUninstall: () => void;
+    error?: string;
+}) {
+    const reason = loaded[installed.id];
+    const showFailed = installed.enabled && !!reason && reason !== 'ok';
+
+    return (
+        <div className={styles.row}>
+            <div className={styles.rowMain}>
+                <span className={styles.rowTitle}>
+                    {installed.manifest.name}
+                    <span className={styles.badge}>v{installed.version}</span>
+                    <span
+                        className={
+                            installed.sideloaded
+                                ? styles.badgeWarn
+                                : styles.badge
+                        }
+                    >
+                        {installed.sideloaded ? 'side-load' : '不在商店目錄'}
+                    </span>
+                    {showFailed && (
+                        <span className={styles.badgeDanger}>
+                            載入失敗:{reason}
+                        </span>
+                    )}
+                </span>
+                <span
+                    className={styles.rowDesc}
+                    title={installed.manifest.description}
+                >
+                    {installed.manifest.description}
+                </span>
+                {error && <span className={styles.rowError}>{error}</span>}
+            </div>
+            <div className={styles.actions}>
+                <button
+                    className={hud.switchTrack[installed.enabled ? 'on' : 'off']}
+                    title={installed.enabled ? '停用此外掛' : '啟用此外掛'}
+                    disabled={busy}
+                    onClick={() => onToggle(!installed.enabled)}
+                />
+                <button
+                    className={styles.removeBtn}
+                    disabled={busy}
+                    onClick={onUninstall}
+                >
+                    {busy ? '處理中…' : '移除'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function DevSection() {
     const [open, setOpen] = useState(false);
     const [url, setUrl] = useState('');
@@ -276,6 +345,11 @@ export function PluginStoreDialog({
     const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
     const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
+    // catalog 拿不到（離線）時視為空集合，所有已安裝外掛都落進「不在
+    // 商店目錄」清單，仍然可以停用/移除，管理流程不因離線而斷掉
+    const catalogIds = new Set((catalog?.plugins ?? []).map((e) => e.id));
+    const orphanInstalled = installed.filter((p) => !catalogIds.has(p.id));
+
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
@@ -351,13 +425,19 @@ export function PluginStoreDialog({
                     </button>
                 </div>
 
-                {catalog === null ? (
+                {catalog === null && (
                     <div className={styles.offlineHint}>
                         無法取得外掛目錄（離線？），已安裝的外掛不受影響
                     </div>
-                ) : catalog.plugins.length === 0 ? (
-                    <div className={styles.emptyHint}>目前沒有可用外掛</div>
-                ) : (
+                )}
+                {catalog !== null &&
+                    catalog.plugins.length === 0 &&
+                    orphanInstalled.length === 0 && (
+                        <div className={styles.emptyHint}>
+                            目前沒有可用外掛
+                        </div>
+                    )}
+                {catalog !== null && catalog.plugins.length > 0 && (
                     <div className={styles.list}>
                         {catalog.plugins.map((entry) => {
                             const inst = installed.find(
@@ -391,6 +471,30 @@ export function PluginStoreDialog({
                             );
                         })}
                     </div>
+                )}
+                {orphanInstalled.length > 0 && (
+                    <>
+                        <div className={styles.sectionLabel}>
+                            已安裝（不在商店目錄）
+                        </div>
+                        <div className={styles.list}>
+                            {orphanInstalled.map((p) => (
+                                <OrphanRow
+                                    key={p.id}
+                                    installed={p}
+                                    loaded={loaded}
+                                    busy={busyIds.has(p.id)}
+                                    error={rowErrors[p.id]}
+                                    onToggle={(on) =>
+                                        void withBusy(p.id, () =>
+                                            setPluginEnabled(p.id, on),
+                                        )
+                                    }
+                                    onUninstall={() => onUninstall(p.id)}
+                                />
+                            ))}
+                        </div>
+                    </>
                 )}
 
                 <DevSection />
