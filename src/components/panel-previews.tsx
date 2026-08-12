@@ -559,6 +559,25 @@ export const PANEL_PREVIEWS: Record<BlockType, ReactNode> = {
             ))}
         </Frame>
     ),
+    news: (
+        <Frame>
+            <rect x='8' y='10' width='70' height='6' rx='2' fill={muted} fillOpacity='0.8' />
+            <rect x='8' y='22' width='104' height='4' rx='2' fill={muted} fillOpacity='0.4' />
+            <rect x='8' y='32' width='60' height='6' rx='2' fill={up} fillOpacity='0.6' />
+            <rect x='8' y='44' width='104' height='4' rx='2' fill={muted} fillOpacity='0.4' />
+            <rect x='8' y='54' width='66' height='6' rx='2' fill={down} fillOpacity='0.6' />
+        </Frame>
+    ),
+    digest: (
+        <Frame>
+            <rect x='8' y='10' width='40' height='8' rx='2' fill={up} fillOpacity='0.6' />
+            <rect x='52' y='10' width='40' height='8' rx='2' fill={down} fillOpacity='0.6' />
+            <rect x='8' y='26' width='104' height='5' rx='2' fill={muted} fillOpacity='0.5' />
+            <rect x='8' y='36' width='88' height='5' rx='2' fill={muted} fillOpacity='0.4' />
+            <rect x='8' y='46' width='96' height='5' rx='2' fill={muted} fillOpacity='0.4' />
+            <rect x='8' y='56' width='72' height='5' rx='2' fill={muted} fillOpacity='0.3' />
+        </Frame>
+    ),
     heatmap: (
         <Frame>
             <rect x='8' y='8' width='56' height='40' fill={down} fillOpacity='0.55' />

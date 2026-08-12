@@ -17,6 +17,43 @@ const pkg = JSON.parse(
     fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'),
 ) as { version?: string };
 
+// 財經新聞面板的 dev 代理。前綴與 src/lib/news.ts 的 PROXY_ORIGINS 一一
+// 對應；鉅亨 API 會擋沒有來源標頭的請求，而 Origin/Referer 又是瀏覽器禁止
+// 腳本自訂的標頭，只能由 proxy 這一層補上。
+const NEWS_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
+const NEWS_UPSTREAMS: {
+    prefix: string;
+    target: string;
+    headers?: Record<string, string>;
+}[] = [
+    {
+        prefix: '/news/cnyes',
+        target: 'https://api.cnyes.com',
+        headers: {
+            Origin: 'https://news.cnyes.com',
+            Referer: 'https://news.cnyes.com/',
+        },
+    },
+    { prefix: '/news/yahoo', target: 'https://tw.stock.yahoo.com' },
+    { prefix: '/news/udn', target: 'https://money.udn.com' },
+    { prefix: '/news/cna', target: 'https://feeds.feedburner.com' },
+    { prefix: '/news/technews', target: 'https://finance.technews.tw' },
+    { prefix: '/news/twse', target: 'https://openapi.twse.com.tw' },
+    { prefix: '/news/tpex', target: 'https://www.tpex.org.tw' },
+];
+
+const newsProxy = Object.fromEntries(
+    NEWS_UPSTREAMS.map(({ prefix, target, headers }) => [
+        prefix,
+        {
+            target,
+            changeOrigin: true,
+            rewrite: (path: string) => path.slice(prefix.length),
+            headers: { 'User-Agent': NEWS_UA, ...headers },
+        },
+    ]),
+);
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
     return {
@@ -55,6 +92,9 @@ export default defineConfig(({ mode }) => {
                 '@': path.resolve(__dirname, './src'),
             },
         },
+        // preview（launcher 走 pnpm preview）與 dev 用同一組新聞代理，
+        // 否則 preview 下新聞會全被 CORS 擋掉
+        preview: { proxy: { ...newsProxy } },
         server: {
             // honor a harness-assigned port (preview tooling sets PORT);
             // default stays 5173 for tauri dev. Bind loopback only so Vite
@@ -66,6 +106,10 @@ export default defineConfig(({ mode }) => {
                 // binary、port 21322）— 確保 API/UI 版本相符，不依賴使用
                 // 者自裝在 8080 的 CLI。要打別台時用 VITE_API_TARGET 蓋掉
                 '/api': env.VITE_API_TARGET ?? 'http://127.0.0.1:21322',
+                // 財經新聞面板：這些新聞站一家都沒送 CORS 標頭，瀏覽器直
+                // 連必被擋。桌面版走 Tauri 的 Rust-side fetch，dev 就靠這
+                // 組 proxy（前綴與 src/lib/news.ts 的 PROXY_ORIGINS 對應）
+                ...newsProxy,
             },
         },
     };

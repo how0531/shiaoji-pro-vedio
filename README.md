@@ -1,3 +1,23 @@
+# Shioaji Pro 教學影片專案
+
+> 本 repo = **Shioaji Pro 完整教學影片系列**（實錄製作）＋ 上游 app 原始碼（fork 自
+> [Sinotrade/shioaji-pro-app](https://github.com/Sinotrade/shioaji-pro-app)）。
+> 影片全程於**模擬環境**實際操作錄影，帳號遮蔽、無金鑰入鏡。
+> 影片專案全部收在 [`video/`](video/)，本檔案以下為 app 本身的說明。
+
+| 內容 | 位置 |
+|---|---|
+| 🎬 入門七集 T1–T7（2K） | [`video/成品/教學七集/`](video/成品/教學七集/) |
+| 🎬 進階系列 進5–進11＋AI Agent（2K） | [`video/成品/進階系列/`](video/成品/進階系列/) |
+| 🗺 分眾觀看路線圖（該看哪幾集） | [`video/企劃/分眾觀看路線圖.md`](video/企劃/分眾觀看路線圖.md) |
+| 🛠 影片自動化製作管線（Playwright 實錄→組裝） | [`video/pipeline/`](video/pipeline/) |
+| 🤖 AI 交易代理實作（Shioaji SDK，模擬環境） | [`video/agent-demos/`](video/agent-demos/) |
+| 📖 介紹文／功能操作手冊 | [`video/文件/介紹文.md`](video/文件/介紹文.md)・[`video/文件/功能操作手冊.md`](video/文件/功能操作手冊.md) |
+| 📋 企劃與追蹤（總規劃/完成追蹤/風格指南） | [`video/企劃/`](video/企劃/) |
+| 📔 開發日誌（全程工程記錄） | [`video/文件/開發日誌.md`](video/文件/開發日誌.md) |
+
+---
+
 # Shioaji Pro — 專業交易終端 Trading Terminal
 
 **[官方網站 / Landing Page](https://sinotrade.github.io/shioaji-pro-app/)** ・

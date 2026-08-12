@@ -58,6 +58,79 @@ export const stepBtn = style({
     ':hover': { color: vars.color.foreground },
 });
 
+export const amountGroup = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '2px',
+});
+
+export const amountBtn = style({
+    fontFamily: vars.font.body,
+    fontSize: '0.64rem',
+    color: vars.color.mutedForeground,
+    background: vars.color.inset,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    padding: '2px 5px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.1s',
+    ':hover': {
+        color: vars.color.accent,
+        borderColor: vars.color.accent,
+        background: vars.color.panelRaised,
+    },
+    // 金額不足一張/一口時停用（不靜默補成 1 單位而超支）
+    ':disabled': {
+        opacity: 0.35,
+        cursor: 'not-allowed',
+    },
+});
+
+// 策略開關列（自動拆單／移動停損）
+export const stratRow = style({
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: vars.space.sm,
+    padding: `3px ${vars.space.sm}`,
+    borderBottom: `1px solid ${vars.color.border}`,
+    flexShrink: 0,
+    fontSize: '0.62rem',
+    color: vars.color.mutedForeground,
+});
+
+export const stratCheck = style({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    cursor: 'pointer',
+    userSelect: 'none',
+});
+
+export const stratCheckbox = style({
+    width: '0.85rem',
+    height: '0.85rem',
+    accentColor: vars.color.accent,
+    cursor: 'pointer',
+    margin: 0,
+});
+
+export const stratNumInput = style({
+    width: '2.4rem',
+    fontFamily: vars.font.mono,
+    fontSize: '0.66rem',
+    textAlign: 'center',
+    color: vars.color.foreground,
+    background: vars.color.inset,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    padding: '1px 3px',
+    outline: 'none',
+    ':focus': { borderColor: vars.color.accent },
+    ':disabled': { opacity: 0.4, cursor: 'not-allowed' },
+});
+
 const armBase = style({
     flex: 1,
     fontFamily: vars.font.display,

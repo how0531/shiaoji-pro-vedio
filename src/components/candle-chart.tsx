@@ -1168,7 +1168,7 @@ export function CandleChart({
             series.createPriceLine({
                 price: t.price,
                 color:
-                    t.kind === 'stop'
+                    t.kind === 'stop' || t.kind === 'trail'
                         ? '#e0a43c'
                         : t.kind === 'alert'
                           ? '#8b94a7'
@@ -1179,7 +1179,9 @@ export function CandleChart({
                 title:
                     t.kind === 'alert'
                         ? '警示'
-                        : `${t.kind === 'stop' ? '停損' : '停利'}${t.action === 'Buy' ? '買' : '賣'}${t.quantity}`,
+                        : t.kind === 'trail'
+                          ? `移動停損${t.trailPct}%`
+                          : `${t.kind === 'stop' ? '停損' : '停利'}${t.action === 'Buy' ? '買' : '賣'}${t.quantity}`,
             }),
         );
         return () => {
@@ -1581,15 +1583,16 @@ export function CandleChart({
                         {triggers.map((t) => (
                             <div key={t.id} className={styles.triggerRow}>
                                 <span>
-                                    {t.kind === 'stop' ? (
+                                    {t.kind === 'stop' || t.kind === 'trail' ? (
                                         <OctagonX size={10} />
                                     ) : t.kind === 'take' ? (
                                         <Crosshair size={10} />
                                     ) : (
                                         <Bell size={10} />
                                     )}{' '}
-                                    {t.condition === 'below' ? '≤' : '≥'}
-                                    {fmtPrice(t.price)}
+                                    {t.kind === 'trail'
+                                        ? `移動${t.trailPct}%`
+                                        : `${t.condition === 'below' ? '≤' : '≥'}${fmtPrice(t.price)}`}
                                     {t.kind !== 'alert' &&
                                         ` ${t.action === 'Buy' ? '買' : '賣'}${t.quantity}`}
                                 </span>

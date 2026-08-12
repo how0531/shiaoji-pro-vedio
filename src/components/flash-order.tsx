@@ -21,9 +21,11 @@ import { maskMoney, usePrivacyMoney } from '../lib/privacy';
 import { cancelOrder } from '../lib/shioaji';
 import { getAliasFor, onOrderEvent } from '../lib/stream';
 import { notify, placeQuickOrder } from '../lib/trade';
+import { addTrigger } from '../lib/trigger-engine';
 import type { ContractInfo } from '../lib/types/contract';
 import { ACTIVE_ORDER_STATUSES, type Action, type Trade } from '../lib/types/order';
 import type { Position } from '../lib/types/portfolio';
+import { contractMultiplier } from '../lib/utils/contract-cost';
 import { fmtInt, fmtPrice, fmtSigned } from '../lib/utils/format';
 import { roundToTick, stepPrice } from '../lib/utils/ticksize';
 import * as styles from './flash-order.css';
@@ -32,6 +34,13 @@ const ROW_H = 22; // must match row height in flash-order.css.ts
 const EDGE = 2; // auto-recenter when last price gets this close to the edge
 
 const keyOf = (p: number) => p.toFixed(2);
+
+const AMOUNT_PRESETS = [
+    { label: '50萬', value: 500_000 },
+    { label: '100萬', value: 1_000_000 },
+    { label: '250萬', value: 2_500_000 },
+    { label: '500萬', value: 5_000_000 },
+];
 
 interface RowProps {
     price: number;
@@ -183,6 +192,11 @@ export function FlashOrder({
     const privMoney = usePrivacyMoney();
     const [qty, setQty] = useState(1);
     const [armed, setArmed] = useState(false);
+    // 策略開關：自動拆單（每筆上限）與移動停損（回撤 %）
+    const [autoSplit, setAutoSplit] = useState(false);
+    const [sliceSize, setSliceSize] = useState('5');
+    const [trailStop, setTrailStop] = useState(false);
+    const [trailPct, setTrailPct] = useState('3');
     const [anchor, setAnchor] = useState<number | null>(null);
     const [follow, setFollow] = useState(true);
     const [rowCount, setRowCount] = useState(21);
@@ -210,14 +224,24 @@ export function FlashOrder({
     followRef.current = follow;
     const hoverRef = useRef(false);
     const inflightRef = useRef(new Set<string>());
+    const autoSplitRef = useRef(autoSplit);
+    autoSplitRef.current = autoSplit;
+    const sliceRef = useRef(sliceSize);
+    sliceRef.current = sliceSize;
+    const trailStopRef = useRef(trailStop);
+    trailStopRef.current = trailStop;
+    const trailPctRef = useRef(trailPct);
+    trailPctRef.current = trailPct;
     const onOrdersChangedRef = useRef(onOrdersChanged);
     onOrdersChangedRef.current = onOrdersChanged;
 
-    // reset on symbol change
+    // reset on symbol change — qty 一併歸 1，否則金額鈕在低價股換算出的
+    // 大量（例如 50 張）會原封不動套到下一檔（50 口台指期）
     useEffect(() => {
         setAnchor(null);
         setFollow(true);
         setArmed(false);
+        setQty(1);
     }, [contract.code]);
 
     // safety: drop out of armed mode the moment the feed isn't LIVE so a
@@ -444,6 +468,9 @@ export function FlashOrder({
         return { net, avg, avgKey: keyOf(roundToTick(contract, avg)), pnl };
     }, [positions, contract]);
 
+    const posRef = useRef(pos);
+    posRef.current = pos;
+
     // refresh working orders promptly after any order event (debounced —
     // a burst of events triggers one refresh). The delay is jittered per
     // instance so eight 閃電全開 windows don't all refetch in the same
@@ -470,27 +497,81 @@ export function FlashOrder({
         if (inflightRef.current.has(key)) return; // double-click guard
         inflightRef.current.add(key);
         force();
+
+        // 自動拆單：總量超過「每筆上限」就拆成多筆各 ≤ 上限（最後一筆餘數）。
+        // 未啟用或量不超過上限 → 單筆送出，行為與拆單前一致。
+        const cap = Math.max(1, Math.floor(Number(sliceRef.current) || 0));
+        const chunks: number[] = [];
+        if (autoSplitRef.current && q > cap) {
+            let rem = q;
+            while (rem > 0) {
+                const c = Math.min(cap, rem);
+                chunks.push(c);
+                rem -= c;
+            }
+        } else {
+            chunks.push(q);
+        }
+
         try {
-            const trade = await placeQuickOrder(
-                contractRef.current,
-                action,
-                price,
-                q,
+            const results = await Promise.allSettled(
+                chunks.map((c) =>
+                    placeQuickOrder(contractRef.current, action, price, c),
+                ),
             );
-            notify({
-                kind: 'ok',
-                title: `⚡ ${action === 'Buy' ? '買進' : '賣出'}已送出`,
-                body: `${contractRef.current.code} ${q} @ ${
-                    price === null ? '市價' : fmtPrice(price)
-                } (${trade.status.status})`,
-            });
-            onOrdersChangedRef.current?.();
-        } catch (e) {
-            notify({
-                kind: 'err',
-                title: '⚡ 閃電下單失敗',
-                body: e instanceof Error ? e.message : String(e),
-            });
+            const okCount = results.filter(
+                (r) => r.status === 'fulfilled',
+            ).length;
+            const okQty = results.reduce(
+                (s, r, i) => (r.status === 'fulfilled' ? s + chunks[i]! : s),
+                0,
+            );
+            const priceText = price === null ? '市價' : fmtPrice(price);
+            if (okCount > 0) {
+                notify({
+                    kind: okCount === chunks.length ? 'ok' : 'err',
+                    title: `⚡ ${action === 'Buy' ? '買進' : '賣出'}已送出`,
+                    body:
+                        chunks.length > 1
+                            ? `${contractRef.current.code} ${okQty} @ ${priceText}（拆 ${okCount}/${chunks.length} 筆）`
+                            : `${contractRef.current.code} ${okQty} @ ${priceText}`,
+                });
+
+                // 移動停損：僅在開/加倉方向成交後掛反向追蹤停損（純平倉不掛）。
+                // 買進且無倉或多倉 → 掛 Sell 追蹤；賣出且無倉或空倉 → 掛 Buy 追蹤。
+                if (trailStopRef.current) {
+                    const pct = Number(trailPctRef.current);
+                    const lp = lastRef.current;
+                    const p = posRef.current;
+                    const opening =
+                        action === 'Buy' ? !p || p.net >= 0 : !p || p.net <= 0;
+                    if (pct > 0 && lp !== null && lp > 0 && opening) {
+                        addTrigger({
+                            code: contractRef.current.code,
+                            kind: 'trail',
+                            action: action === 'Buy' ? 'Sell' : 'Buy',
+                            quantity: okQty,
+                            trailPct: pct,
+                            price: lp,
+                            condition: action === 'Buy' ? 'below' : 'above',
+                        });
+                    }
+                }
+                onOrdersChangedRef.current?.();
+            }
+            const firstErr = results.find(
+                (r): r is PromiseRejectedResult => r.status === 'rejected',
+            );
+            if (firstErr) {
+                notify({
+                    kind: 'err',
+                    title: '⚡ 閃電下單失敗',
+                    body:
+                        firstErr.reason instanceof Error
+                            ? firstErr.reason.message
+                            : String(firstErr.reason),
+                });
+            }
         } finally {
             inflightRef.current.delete(key);
             force();
@@ -577,6 +658,27 @@ export function FlashOrder({
         return n;
     }, [myOrders]);
 
+    const isFutures =
+        contract.security_type === 'FUT' || contract.security_type === 'OPT';
+    const lotMultiplier = isFutures ? contractMultiplier(contract) : 1000;
+    // last 可能是 0/NaN（無報價），用 > 0 過濾才不會讓 NaN 穿透到數量
+    const curPrice = last && last > 0 ? last : contract.reference || 0;
+    // 換算基準＝契約價值（股票 價格×1000、期權 價格×乘數）。期貨實際只
+    // 需繳保證金，所以這是保守估計：以名目值算出的口數一定不會超買。
+    const singleLotValue = curPrice * lotMultiplier;
+    // 交易所單筆上限：股票 499 張、期貨/選擇權 100 口
+    const qtyCap = isFutures ? 100 : 499;
+
+    // 買不起一個單位就回 0 —— 按鈕會停用，不能靜默補成 1 單位
+    // （100 萬點在單張 105 萬的千金股上，補 1 張就是超支 5%）
+    const calcQtyFromAmount = useCallback(
+        (amount: number) => {
+            if (!(singleLotValue > 0)) return 0;
+            return Math.min(Math.floor(amount / singleLotValue), qtyCap);
+        },
+        [singleLotValue, qtyCap],
+    );
+
     return (
         <div className={styles.wrap}>
             <div className={styles.controls}>
@@ -602,6 +704,33 @@ export function FlashOrder({
                 >
                     ＋
                 </button>
+                <div
+                    className={styles.amountGroup}
+                    title={`點擊依金額換算${isFutures ? '口數（以契約名目價值計，非保證金）' : '張數'}`}
+                >
+                    {AMOUNT_PRESETS.map((p) => {
+                        const calculatedQty = calcQtyFromAmount(p.value);
+                        const unitName = isFutures ? '口' : '張';
+                        const lotText = `單${unitName}約 ${fmtInt(Math.round(singleLotValue))} 元`;
+                        return (
+                            <button
+                                key={p.label}
+                                className={styles.amountBtn}
+                                disabled={calculatedQty < 1}
+                                title={
+                                    !(singleLotValue > 0)
+                                        ? `${p.label}：無報價，無法換算`
+                                        : calculatedQty < 1
+                                          ? `${p.label} 不足一${unitName}（${lotText}）`
+                                          : `金額 ${p.label} → ${calculatedQty} ${unitName}（現價 ${fmtPrice(curPrice)} / ${lotText}）`
+                                }
+                                onClick={() => setQty(calculatedQty)}
+                            >
+                                {p.label}
+                            </button>
+                        );
+                    })}
+                </div>
                 <button
                     className={styles.armBtn[armed ? 'on' : 'off']}
                     disabled={!live}
@@ -635,6 +764,48 @@ export function FlashOrder({
                 >
                     置中
                 </button>
+            </div>
+            <div className={styles.stratRow}>
+                <label
+                    className={styles.stratCheck}
+                    title={`量超過每筆上限就拆成多筆各 ≤ 上限（同時送出）`}
+                >
+                    <input
+                        type='checkbox'
+                        className={styles.stratCheckbox}
+                        checked={autoSplit}
+                        onChange={(e) => setAutoSplit(e.target.checked)}
+                    />
+                    自動拆單 每筆
+                    <input
+                        className={styles.stratNumInput}
+                        inputMode='numeric'
+                        value={sliceSize}
+                        disabled={!autoSplit}
+                        onChange={(e) => setSliceSize(e.target.value)}
+                    />
+                    {isFutures ? '口' : '張'}
+                </label>
+                <label
+                    className={styles.stratCheck}
+                    title='進場成交後，依成交方向掛反向移動停損：價格回撤此 % 觸價市價出場'
+                >
+                    <input
+                        type='checkbox'
+                        className={styles.stratCheckbox}
+                        checked={trailStop}
+                        onChange={(e) => setTrailStop(e.target.checked)}
+                    />
+                    移動停損
+                    <input
+                        className={styles.stratNumInput}
+                        inputMode='decimal'
+                        value={trailPct}
+                        disabled={!trailStop}
+                        onChange={(e) => setTrailPct(e.target.value)}
+                    />
+                    %
+                </label>
             </div>
             <div className={styles.actionBar}>
                 <button
