@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkCompat, cmpVersion, parseManifest } from './manifest';
+import { PLUGIN_PERMISSION_IDS, PLUGIN_PERMISSIONS } from './types';
 
 const VALID = {
     id: 'statement',
@@ -51,6 +52,92 @@ describe('parseManifest', () => {
     it('缺 name 欄位', () => {
         const { name: _name, ...missing } = VALID;
         expect(() => parseManifest(missing)).toThrow(/name/);
+    });
+});
+
+describe('parseManifest：permissions', () => {
+    it('接受已知權限並保留順序', () => {
+        const m = parseManifest({
+            ...VALID,
+            permissions: ['order-history-read', 'portfolio-read'],
+        });
+        expect(m.permissions).toEqual(['order-history-read', 'portfolio-read']);
+    });
+    it('重複宣告只留一筆', () => {
+        const m = parseManifest({
+            ...VALID,
+            permissions: ['market-data', 'market-data', 'ui-navigate'],
+        });
+        expect(m.permissions).toEqual(['market-data', 'ui-navigate']);
+    });
+    it('空陣列＝宣告不需要任何權限', () => {
+        const m = parseManifest({ ...VALID, permissions: [] });
+        expect(m.permissions).toEqual([]);
+    });
+    it('未知 permission 要拒絕', () => {
+        expect(() =>
+            parseManifest({ ...VALID, permissions: ['place-order'] }),
+        ).toThrow(/permissions/);
+    });
+    it('非字串元素要拒絕', () => {
+        expect(() =>
+            parseManifest({ ...VALID, permissions: [{ id: 'market-data' }] }),
+        ).toThrow(/permissions/);
+    });
+    it('permissions 非陣列要拒絕', () => {
+        expect(() =>
+            parseManifest({ ...VALID, permissions: 'market-data' }),
+        ).toThrow(/permissions/);
+    });
+    it('每個宣告的 id 都查得到文案', () => {
+        const m = parseManifest({
+            ...VALID,
+            permissions: [...PLUGIN_PERMISSION_IDS],
+        });
+        for (const id of m.permissions ?? []) {
+            expect(PLUGIN_PERMISSIONS[id].label).not.toBe('');
+        }
+    });
+    it('缺 permissions 仍通過且不補欄位（向後相容）', () => {
+        const m = parseManifest(VALID);
+        expect('permissions' in m).toBe(false);
+    });
+});
+
+describe('parseManifest：icon', () => {
+    it('接受 lucide 圖示名稱', () => {
+        expect(parseManifest({ ...VALID, icon: 'Receipt' }).icon).toBe(
+            'Receipt',
+        );
+    });
+    it('接受 emoji 角標', () => {
+        expect(parseManifest({ ...VALID, icon: '📄' }).icon).toBe('📄');
+    });
+    it('接受兩字元文字角標', () => {
+        expect(parseManifest({ ...VALID, icon: '權證' }).icon).toBe('權證');
+    });
+    it('拒絕三字元以上的非圖示名稱', () => {
+        expect(() => parseManifest({ ...VALID, icon: '對帳單' })).toThrow(
+            /icon/,
+        );
+    });
+    it('拒絕 URL 與 data URI', () => {
+        expect(() =>
+            parseManifest({ ...VALID, icon: 'https://evil.test/x.svg' }),
+        ).toThrow(/icon/);
+        expect(() =>
+            parseManifest({ ...VALID, icon: 'data:image/svg+xml,<svg/>' }),
+        ).toThrow(/icon/);
+    });
+    it('拒絕標記符號', () => {
+        expect(() => parseManifest({ ...VALID, icon: '<>' })).toThrow(/icon/);
+    });
+    it('拒絕空字串與非字串', () => {
+        expect(() => parseManifest({ ...VALID, icon: '' })).toThrow(/icon/);
+        expect(() => parseManifest({ ...VALID, icon: 42 })).toThrow(/icon/);
+    });
+    it('缺 icon 仍通過且不補欄位（向後相容）', () => {
+        expect('icon' in parseManifest(VALID)).toBe(false);
     });
 });
 
