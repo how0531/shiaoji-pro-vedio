@@ -7,8 +7,11 @@ import type { SseTick } from '../stream';
 export const HOST_API_VERSION = 1;
 
 // 官方商店 manifest 的 URL；開發時可用 localStorage 'sjp.plugins.storeUrl' 覆寫
+// 外掛市集架在 GitHub Pages（目錄式網址，載入器才抓得到
+// <base>/<id>/manifest.json）。市集若換帳號或搬到內網，改這一行即可，
+// 開發時也能用 localStorage 的 sjp.plugins.storeUrl 覆寫。
 export const OFFICIAL_STORE_URL =
-    'https://github.com/Sinotrade/shioaji-pro-plugins/releases/latest/download/store.json';
+    'https://how0531.github.io/shioaji-pro-plugins/store.json';
 
 export interface PluginManifest {
     id: string;
