@@ -171,12 +171,102 @@ export interface WarrantInfo {
     delivery_date?: string;
 }
 
+// host.ui.theme() 回傳的設計 token。目的是讓外掛面板長得跟 App 內建面板
+// 一樣，而不是只有漲跌色可用（只有 5 個 token 時，外掛怎麼排都跟 App 有
+// 明顯落差，看起來像外掛而不像產品的一部分）。
+//
+// 【值的形態】mode/convention 以外分三類，混用前先看清楚：
+// ・up / down / text / bg（v1 就有的四個）是實際色值字串（如
+//   '#f23645'），canvas 的 fillStyle 也吃得下。
+// ・其餘顏色與 font/space/radius 是 CSS 變數參照字串（形如
+//   'var(--color-border__1x2y3z0)'）。主題 class 掛在 <html>，外掛面板是
+//   它的後代，所以放進 inline style 或 SVG 屬性都會正確解析；而且使用者
+//   切換主題時不用重新呼叫 theme() 就會自己跟著變（host v1 沒有主題變更
+//   的訂閱 API，快照成實色反而會留在舊主題）。反過來說 canvas 的
+//   fillStyle 不認 var()，要畫 canvas 請用上面那四個實色。
+// ・fontSize 是純 rem 字面值（App 這一層沒有對應的 CSS 變數）。rem 會跟
+//   著使用者的字級縮放走，不要自己換算成 px。
+//
+// 【只加不改】既有 5 個欄位的名稱與語意永遠不動，舊外掛照跑。
 export interface ThemeTokens {
     mode: 'dark' | 'midnight' | 'light';
     up: string; // 漲色（依台/美慣例設定變化）
     down: string;
     text: string;
     bg: string;
+
+    // 目前的漲跌色慣例：'tw' 紅漲綠跌、'intl' 綠漲紅跌。up/down 已經照
+    // 慣例換過色，通常不用讀這欄；要寫「紅K/綠K」這種文案時才需要。
+    convention: 'tw' | 'intl';
+
+    // ---- 表面（由低到高的層次）----
+    panel: string; // 面板底色。sticky 表頭要蓋住捲動內容就用它（不透明）
+    panelRaised: string; // 浮起層：下拉選單、彈出卡片
+    inset: string; // 凹陷層：統計卡背景、分組表頭
+    hoverBg: string; // 列 hover 底色，也是進度條/量尺的軌道底色
+
+    // ---- 文字 ----
+    textMuted: string; // 次要文字：標籤、表頭、註解、單位
+
+    // ---- 框線 ----
+    border: string; // 一般邊框：面板分隔、卡片外框、表頭底線
+    borderStrong: string; // 較亮的邊框：focus、需要強調的分隔
+    borderSubtle: string; // 半透明細線：表格資料列之間的分隔線
+
+    // ---- 品牌強調 ----
+    accent: string; // 強調色：面板標題左側色條、連結、focus ring
+    accentSoft: string; // accent 的低透明底：選取列、chip 背景
+
+    // ---- 漲跌的低透明底（做 badge / chip 用）----
+    upSoft: string;
+    downSoft: string;
+    flat: string; // 0 值不上色時的中性數字色
+
+    // ---- 語意色（恆定，不隨台/美慣例翻轉）----
+    // 警戒與風險一定要用這三個，不要拿 up/down 代打：使用者切成 intl
+    // 慣例時 up/down 會互換，「維持率過低」會從紅變綠。
+    success: string; // 安全、達標（恆綠）
+    danger: string; // 危險、違規、追繳（恆紅）
+    warning: string; // 警戒、接近門檻（琥珀）
+
+    // ---- 字族 ----
+    // 數字一律 mono，並自行加上 fontVariantNumeric: 'tabular-nums'
+    // （兩者永遠成對出現，否則數字欄會跳動）。
+    font: {
+        display: string; // 標籤、表頭、標題
+        mono: string; // 所有數字
+        body: string; // 中文敘述
+    };
+
+    // ---- 字級階梯 ----
+    // 交易終端的密度，比一般後台小一號以上，照這個梯度用就會跟 App 一致。
+    fontSize: {
+        kpi: string; // 1.4rem，面板唯一的主指標
+        stat: string; // 1rem，統計卡的值
+        total: string; // 0.9rem，小計/總額列
+        body: string; // 0.72rem，表格與一般數值
+        label: string; // 0.64rem，資料標籤
+        header: string; // 0.62rem，表頭與區塊小標
+        micro: string; // 0.6rem，最小註記
+    };
+
+    // ---- 間距 ----
+    // 表格 cell 的慣例是 padding: `4px ${space.sm}`（列高約 22 至 24px）。
+    space: {
+        xs: string; // 0.25rem
+        sm: string; // 0.5rem
+        md: string; // 1rem
+        lg: string; // 1.5rem
+        xl: string; // 2rem
+    };
+
+    // ---- 圓角 ----
+    // chip 之類的膠囊直接寫 '999px'，不在這個梯度裡。
+    radius: {
+        sm: string; // 0.25rem，卡片與 badge
+        md: string; // 0.375rem
+        lg: string; // 0.5rem
+    };
 }
 
 // /api/v1/auth/accounts 的投影，刻意只留這四個欄位。原始回應還帶

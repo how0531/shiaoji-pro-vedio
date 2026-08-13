@@ -12,6 +12,7 @@ import { trackActivity } from '../activity';
 import { resolveContract, fetchWarrants, subscribeQuote } from '../shioaji';
 import { ensureStream, onAnyTick } from '../stream';
 import { getThemeSettings, getChartColors } from '../theme-store';
+import { vars } from '../../theme.css';
 import type { Account } from '../types/portfolio';
 import type { PluginAccount, PluginHost, ThemeTokens } from './types';
 import { HOST_API_VERSION } from './types';
@@ -66,6 +67,15 @@ function toPluginAccount(a: Account): PluginAccount {
     };
 }
 
+// 新增的 token 直接把 vanilla-extract 的變數參照字串交出去（vars.color.x
+// 在執行期就是 'var(--color-x__hash)'）。這樣成立是因為主題 class 掛在
+// <html>（見 theme-store 的 applyClass），外掛面板是它的後代，inline style
+// 與 SVG 屬性都解析得到；而且使用者切換主題時外掛不用重新呼叫 theme() 就
+// 會跟著變色 —— host v1 沒有主題變更的訂閱 API，外掛面板也沒有訂閱
+// useThemeSettings，若在這裡用 getComputedStyle 解析成實色快照，主題一換
+// 外掛就整片留在舊配色。
+// 代價是這些字串不能餵給 canvas 的 fillStyle。既有的 up/down/text/bg 維持
+// 實色不動（本來就是給 canvas 用的 chart 色），要畫 canvas 用那四個。
 function themeTokens(): ThemeTokens {
     const s = getThemeSettings();
     const c = getChartColors(s);
@@ -75,6 +85,51 @@ function themeTokens(): ThemeTokens {
         down: c.down,
         text: s.mode === 'light' ? '#1a1a1a' : '#e8e8e8',
         bg: s.mode === 'light' ? '#ffffff' : '#101014',
+        convention: s.convention,
+        panel: vars.color.panel,
+        panelRaised: vars.color.panelRaised,
+        inset: vars.color.inset,
+        hoverBg: vars.color.muted,
+        textMuted: vars.color.mutedForeground,
+        border: vars.color.border,
+        borderStrong: vars.color.borderBright,
+        borderSubtle: vars.color.borderSubtle,
+        accent: vars.color.accent,
+        accentSoft: vars.color.accentDim,
+        upSoft: vars.color.upDim,
+        downSoft: vars.color.downDim,
+        flat: vars.color.flat,
+        success: vars.color.success,
+        danger: vars.color.danger,
+        warning: vars.color.amber,
+        font: {
+            display: vars.font.display,
+            mono: vars.font.mono,
+            body: vars.font.body,
+        },
+        // 字級沒有對應的 CSS 變數（App 各元件直接寫 rem 字面值），照
+        // panel/bottom-dock 既有的階梯抄一份給外掛。
+        fontSize: {
+            kpi: '1.4rem',
+            stat: '1rem',
+            total: '0.9rem',
+            body: '0.72rem',
+            label: '0.64rem',
+            header: '0.62rem',
+            micro: '0.6rem',
+        },
+        space: {
+            xs: vars.space.xs,
+            sm: vars.space.sm,
+            md: vars.space.md,
+            lg: vars.space.lg,
+            xl: vars.space.xl,
+        },
+        radius: {
+            sm: vars.radius.sm,
+            md: vars.radius.md,
+            lg: vars.radius.lg,
+        },
     };
 }
 

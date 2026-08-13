@@ -17,6 +17,8 @@ interface Palette {
     muted: string;
     mutedForeground: string;
     border: string;
+    // border 的半透明版本，用在表格資料列之間那種要更淡的分隔線
+    borderSubtle: string;
     borderBright: string;
     accent: string;
     accentDim: string;
@@ -38,6 +40,7 @@ const dark: Palette = {
     muted: '#1d2530',
     mutedForeground: '#8b94a7',
     border: '#222b37',
+    borderSubtle: 'rgba(34, 43, 55, 0.5)',
     borderBright: '#334052',
     accent: '#3d8bff',
     accentDim: 'rgba(61, 139, 255, 0.12)',
@@ -59,6 +62,7 @@ const midnight: Palette = {
     muted: '#14181f',
     mutedForeground: '#7e8798',
     border: '#1a1f29',
+    borderSubtle: 'rgba(26, 31, 41, 0.5)',
     borderBright: '#2a3140',
     accent: '#3d8bff',
     accentDim: 'rgba(61, 139, 255, 0.12)',
@@ -80,6 +84,7 @@ const light: Palette = {
     muted: '#e9ecf1',
     mutedForeground: '#5f6b80',
     border: '#dde2e9',
+    borderSubtle: 'rgba(221, 226, 233, 0.6)',
     borderBright: '#c3ccd9',
     accent: '#2962ff',
     accentDim: 'rgba(41, 98, 255, 0.10)',
@@ -110,6 +115,7 @@ function makeTokens(p: Palette, convention: 'tw' | 'intl') {
             muted: p.muted,
             mutedForeground: p.mutedForeground,
             border: p.border,
+            borderSubtle: p.borderSubtle,
             borderBright: p.borderBright,
             accent: p.accent,
             accentDim: p.accentDim,

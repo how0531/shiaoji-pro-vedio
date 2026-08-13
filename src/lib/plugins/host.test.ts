@@ -23,7 +23,7 @@ vi.mock('../stream', () => ({
 }));
 
 vi.mock('../theme-store', () => ({
-    getThemeSettings: vi.fn(() => ({ mode: 'light' })),
+    getThemeSettings: vi.fn(() => ({ mode: 'light', convention: 'intl' })),
     getChartColors: vi.fn(() => ({ up: '#00cc00', down: '#cc0000' })),
 }));
 
@@ -116,6 +116,86 @@ describe('createHost API deny-list', () => {
             host.api.get('/api/v1/auth/ca_expiretime?person_id=A123456789'),
         ).rejects.toThrow(/host\.accounts/);
         expect(vi.mocked(apiGet)).not.toHaveBeenCalled();
+    });
+});
+
+describe('createHost ui.theme', () => {
+    // v1 就有的 5 個欄位是外掛的既有契約，改名或改語意會讓已發佈的外掛
+    // 整片破圖，所以鎖住名稱與來源。
+    it('既有 5 個欄位沒被改名，值仍來自 theme-store', () => {
+        const host = createHost('test', { onSelectCode: () => {} });
+
+        const t = host.ui.theme();
+
+        expect(t.mode).toBe('light');
+        expect(t.up).toBe('#00cc00');
+        expect(t.down).toBe('#cc0000');
+        expect(t.text).toBe('#1a1a1a');
+        expect(t.bg).toBe('#ffffff');
+    });
+
+    it('新增的顏色 token 都有值', () => {
+        const host = createHost('test', { onSelectCode: () => {} });
+
+        const t = host.ui.theme();
+
+        const colorKeys = [
+            'panel',
+            'panelRaised',
+            'inset',
+            'hoverBg',
+            'textMuted',
+            'border',
+            'borderStrong',
+            'borderSubtle',
+            'accent',
+            'accentSoft',
+            'upSoft',
+            'downSoft',
+            'flat',
+            'success',
+            'danger',
+            'warning',
+        ] as const;
+        for (const key of colorKeys) {
+            expect(t[key], key).toBeTruthy();
+            // 顏色一律是 CSS 變數參照，主題切換時外掛不用重呼叫就跟著變
+            expect(t[key], key).toMatch(/^var\(--/);
+        }
+    });
+
+    it('convention 跟著 theme-store 走', () => {
+        const host = createHost('test', { onSelectCode: () => {} });
+
+        expect(host.ui.theme().convention).toBe('intl');
+    });
+
+    it('字族、字級、間距、圓角都有值', () => {
+        const host = createHost('test', { onSelectCode: () => {} });
+
+        const t = host.ui.theme();
+
+        for (const key of ['display', 'mono', 'body'] as const) {
+            expect(t.font[key], key).toBeTruthy();
+        }
+        for (const key of [
+            'kpi',
+            'stat',
+            'total',
+            'body',
+            'label',
+            'header',
+            'micro',
+        ] as const) {
+            // 字級是 rem 字面值，跟著使用者的字級縮放走
+            expect(t.fontSize[key], key).toMatch(/rem$/);
+        }
+        for (const key of ['xs', 'sm', 'md', 'lg', 'xl'] as const) {
+            expect(t.space[key], key).toBeTruthy();
+        }
+        for (const key of ['sm', 'md', 'lg'] as const) {
+            expect(t.radius[key], key).toBeTruthy();
+        }
     });
 });
 
