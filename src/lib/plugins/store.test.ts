@@ -86,6 +86,20 @@ describe('hasUpdate', () => {
     it('相同或較舊 → false', () => {
         expect(hasUpdate(FAKE, FAKE.manifest)).toBe(false);
     });
+    it('版號相同但 sha256 不同 → true（發佈者忘了升版的救命索）', () => {
+        expect(
+            hasUpdate(FAKE, { ...FAKE.manifest, sha256: 'b'.repeat(64) }),
+        ).toBe(true);
+    });
+    it('版號較舊但 sha256 不同 → true（內容仍需修復）', () => {
+        expect(
+            hasUpdate(FAKE, {
+                ...FAKE.manifest,
+                version: '0.9.0',
+                sha256: 'c'.repeat(64),
+            }),
+        ).toBe(true);
+    });
 });
 
 describe('installPlugin：相容性以實抓 manifest.json 為準', () => {

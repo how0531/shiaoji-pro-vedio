@@ -58,11 +58,18 @@ export function saveInstalled(list: InstalledPlugin[]) {
     }
 }
 
+// 版號較新，或版號相同但 bundle 內容已變（sha256 不同）都算有更新。
+//
+// 後者是發佈者忘了升版號時的救命索：activatePlugin 用本機記下的 sha256
+// 驗遠端 bundle，內容一變就驗不過、面板顯示「完整性驗證失敗」，但若只比
+// 版號就不會給更新按鈕，使用者會卡在沒有出路的狀態（實際發生過）。
+// side-load 的外掛不走這裡（沒有 catalog entry），不受影響。
 export function hasUpdate(
     p: InstalledPlugin,
     catalogEntry: PluginManifest,
 ): boolean {
-    return cmpVersion(catalogEntry.version, p.version) > 0;
+    const newer = cmpVersion(catalogEntry.version, p.version) > 0;
+    return newer || catalogEntry.sha256 !== p.manifest.sha256;
 }
 
 // ---- runtime state（模組級，非持久化）----

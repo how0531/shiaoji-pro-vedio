@@ -413,14 +413,24 @@ function PluginCard({
                     <span className={styles.cardVersion}>
                         {installed ? `v${installed.version}` : null}
                         {!installed && entry ? `v${entry.version}` : null}
-                        {showUpdate && entry && (
-                            <>
-                                {' → '}
+                        {/* 同版號但 bundle 內容變了（發佈者忘了升版）也算
+                            有更新，此時不畫 v1.0.0 → v1.0.0 這種無意義箭頭，
+                            改標「內容已更新」讓使用者知道為什麼要按更新 */}
+                        {showUpdate &&
+                            entry &&
+                            installed &&
+                            (entry.version === installed.version ? (
                                 <span className={styles.cardVersionNext}>
-                                    v{entry.version}
+                                    {' 內容已更新'}
                                 </span>
-                            </>
-                        )}
+                            ) : (
+                                <>
+                                    {' → '}
+                                    <span className={styles.cardVersionNext}>
+                                        v{entry.version}
+                                    </span>
+                                </>
+                            ))}
                     </span>
                 </span>
                 <span className={styles.cardDesc}>{description}</span>
