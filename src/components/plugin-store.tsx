@@ -197,28 +197,6 @@ export function addedPermissions(
 // undefined，直接索引 .risk 就 throw。先過 sortPermissions（它只保留
 // PLUGIN_PERMISSION_IDS 裡有的 id）把未知 id 濾掉，比照 PermissionDetail
 // 的做法，讓商店對壞資料只是少算一項，不是整頁白掉。
-// 卡片上的權限標籤：講「它會碰到什麼」而不是「幾項高風險」。
-//
-// 原本顯示「4 項高風險」的問題是每個帳務外掛都會標紅，看久了就是警報
-// 疲勞，而且紅字沒告訴使用者任何有用的事（是碰帳務？碰下單？不知道）。
-// 改成短標籤後，同一排空間講的是實質內容，風險仍由 chip 的顏色分級表達，
-// 完整說明留在滑過的 title 與展開的詳情區。
-// 卡片上最多顯示幾個權限標籤，其餘收成 +N
-const PERM_CHIP_LIMIT = 3;
-
-const PERMISSION_SHORT: Record<PluginPermissionId, string> = {
-    'account-identity': '帳號',
-    'account-switch': '切換帳戶',
-    'portfolio-read': '帳務',
-    'order-history-read': '交易紀錄',
-    'realtime-quote': '即時報價',
-    'watchlist-write': '自選清單',
-    'ui-navigate': '切換商品',
-    'market-data': '行情資料',
-    notifications: '通知',
-    'local-settings': '本機設定',
-};
-
 export function riskCounts(
     ids: readonly PluginPermissionId[],
 ): Record<PluginPermissionRisk, number> {
@@ -293,31 +271,22 @@ function PermissionChips({
             </div>
         );
     }
-    // 只顯示前幾個，其餘收成 +N：權限多的外掛會把這一排撐到換行，
-    // 卡片高度就跟著跳。完整清單在展開的詳情區，那裡才是要逐條讀的地方。
-    const shown = sortPermissions(permissions);
-    const visible = shown.slice(0, PERM_CHIP_LIMIT);
-    const rest = shown.length - visible.length;
+    const counts = riskCounts(permissions);
     return (
         <div className={styles.permRow}>
-            {visible.map((id) => (
-                <span
-                    key={id}
-                    className={styles.permChip[PLUGIN_PERMISSIONS[id].risk]}
-                    title={PLUGIN_PERMISSIONS[id].description}
-                >
-                    {PERMISSION_SHORT[id]}
+            {counts.high > 0 && (
+                <span className={styles.permChip.high}>
+                    {counts.high} 項高風險
                 </span>
-            ))}
-            {rest > 0 && (
-                <span
-                    className={styles.permChip.none}
-                    title={shown
-                        .slice(PERM_CHIP_LIMIT)
-                        .map((id) => PERMISSION_SHORT[id])
-                        .join('、')}
-                >
-                    +{rest}
+            )}
+            {counts.medium > 0 && (
+                <span className={styles.permChip.medium}>
+                    {counts.medium} 項中風險
+                </span>
+            )}
+            {counts.low > 0 && (
+                <span className={styles.permChip.low}>
+                    {counts.low} 項低風險
                 </span>
             )}
         </div>
