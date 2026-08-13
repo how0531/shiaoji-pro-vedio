@@ -132,6 +132,13 @@ export function accountFor(type: 'S' | 'F'): Account | undefined {
     return acc?.signed ? acc : undefined;
 }
 
+// 給非 React 端（如 plugin host）訂閱帳戶變動，與 useAccounts 共用同一組
+// listeners，行為一致（帳戶清單重抓、使用者切換帳戶都會觸發）。
+export function subscribeAccounts(cb: () => void): () => void {
+    listeners.add(cb);
+    return () => listeners.delete(cb);
+}
+
 export function useAccounts(): AccountState {
     return useSyncExternalStore(
         (l) => {

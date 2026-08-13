@@ -32,6 +32,7 @@ import {
     ScrollText,
     ShieldAlert,
     Table,
+    Ticket,
     TrendingUp,
     Wallet,
     X,
@@ -91,6 +92,7 @@ export const PLUGIN_ICONS: Record<string, LucideIcon> = {
     Receipt,
     ScrollText,
     Table,
+    Ticket,
     TrendingUp,
     Wallet,
 };
@@ -190,6 +192,11 @@ export function addedPermissions(
     return sortPermissions(next.filter((id) => !current.includes(id)));
 }
 
+// ids 來自 catalog（fetchCatalog 只做 `as StoreCatalog`，未逐筆驗證），
+// store.json 若混進拼錯或未知的權限 id，PLUGIN_PERMISSIONS[id] 會是
+// undefined，直接索引 .risk 就 throw。先過 sortPermissions（它只保留
+// PLUGIN_PERMISSION_IDS 裡有的 id）把未知 id 濾掉，比照 PermissionDetail
+// 的做法，讓商店對壞資料只是少算一項，不是整頁白掉。
 export function riskCounts(
     ids: readonly PluginPermissionId[],
 ): Record<PluginPermissionRisk, number> {
@@ -198,8 +205,17 @@ export function riskCounts(
         medium: 0,
         low: 0,
     };
-    for (const id of ids) counts[PLUGIN_PERMISSIONS[id].risk] += 1;
+    for (const id of sortPermissions(ids)) counts[PLUGIN_PERMISSIONS[id].risk] += 1;
     return counts;
+}
+
+// PLUGIN_ICONS 是物件字面值，`in` / `[]` 索引都會查到 Object.prototype
+// 鏈上的成員（'toString'、'constructor'、'hasOwnProperty'…）。manifest 的
+// icon 欄位是外部字串，若外掛（或壞掉的 catalog）宣告 icon: 'toString'，
+// PLUGIN_ICONS['toString'] 會拿到 Object.prototype.toString 這個函式，被
+// 當成 React 元件渲染會炸掉。Object.hasOwn 只認字面值裡真的存在的鍵。
+export function lookupIcon(icon: string): LucideIcon | undefined {
+    return Object.hasOwn(PLUGIN_ICONS, icon) ? PLUGIN_ICONS[icon] : undefined;
 }
 
 // icon 解析三段（與 manifest 契約一致）：命中 allowlist 畫 lucide 元件 →
@@ -214,7 +230,7 @@ function PluginIcon({
     sideloaded: boolean;
 }) {
     const cls = styles.iconTile[sideloaded ? 'sideload' : 'official'];
-    const Icon = icon ? PLUGIN_ICONS[icon] : undefined;
+    const Icon = icon ? lookupIcon(icon) : undefined;
     if (Icon) {
         return (
             <span className={cls} aria-hidden='true'>

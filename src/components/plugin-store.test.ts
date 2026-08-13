@@ -4,13 +4,18 @@
 import { describe, expect, it } from 'vitest';
 import {
     addedPermissions,
+    lookupIcon,
     PLUGIN_ICONS,
     resolvePermissions,
     riskCounts,
     sortPermissions,
 } from './plugin-store';
 import type { InstalledPlugin } from '../lib/plugins/store';
-import type { PluginManifest, StoreCatalog } from '../lib/plugins/types';
+import type {
+    PluginManifest,
+    PluginPermissionId,
+    StoreCatalog,
+} from '../lib/plugins/types';
 
 type CatalogEntry = StoreCatalog['plugins'][number];
 
@@ -117,6 +122,15 @@ describe('riskCounts', () => {
     it('沒有權限時三級都是 0', () => {
         expect(riskCounts([])).toEqual({ high: 0, medium: 0, low: 0 });
     });
+
+    it('未知權限 id（如 catalog 拼錯）不 throw 也不計入統計', () => {
+        const ids = [
+            'account-identity',
+            'not-a-real-permission',
+        ] as unknown as PluginPermissionId[];
+        expect(() => riskCounts(ids)).not.toThrow();
+        expect(riskCounts(ids)).toEqual({ high: 1, medium: 0, low: 0 });
+    });
 });
 
 describe('addedPermissions', () => {
@@ -165,5 +179,31 @@ describe('PLUGIN_ICONS', () => {
         for (const [key, Icon] of Object.entries(PLUGIN_ICONS)) {
             expect(Icon, key).toBeTruthy();
         }
+    });
+
+    // 四份官方 manifest（statement/margin-ratio/credit-expiry/warrant-finder）
+    // 目前宣告的 icon，逐一鎖住命中 allowlist，避免新外掛加了 icon 欄位
+    // 卻忘記把 lucide 元件補進 PLUGIN_ICONS，靜默退化成文字 monogram。
+    it('四個官方外掛宣告的 icon 都命中 allowlist', () => {
+        const officialIcons = ['Receipt', 'Ticket', 'Gauge', 'CalendarClock'];
+        for (const name of officialIcons) {
+            expect(PLUGIN_ICONS[name], name).toBeTruthy();
+        }
+    });
+});
+
+describe('lookupIcon', () => {
+    it('命中 allowlist 時回傳對應的 lucide 元件', () => {
+        expect(lookupIcon('Receipt')).toBe(PLUGIN_ICONS.Receipt);
+    });
+
+    it('未命中的一般字串回傳 undefined', () => {
+        expect(lookupIcon('NotARealIcon')).toBeUndefined();
+    });
+
+    it('Object.prototype 上的鍵（如 toString）不會被誤判為命中', () => {
+        expect(lookupIcon('toString')).toBeUndefined();
+        expect(lookupIcon('constructor')).toBeUndefined();
+        expect(lookupIcon('hasOwnProperty')).toBeUndefined();
     });
 });

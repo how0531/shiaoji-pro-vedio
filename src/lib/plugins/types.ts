@@ -48,7 +48,7 @@ export const PLUGIN_PERMISSIONS: Record<
     'account-identity': {
         label: '你的身分與券商帳號',
         description:
-            '能讀到你的姓名、身分證字號、券商帳號代碼，以及憑證到期日。',
+            '能看到你有哪些券商帳號代碼，不包含姓名、身分證字號與憑證到期日。',
         risk: 'high',
     },
     'portfolio-read': {
@@ -167,6 +167,19 @@ export interface ThemeTokens {
     bg: string;
 }
 
+// /api/v1/auth/accounts 的投影，刻意只留這四個欄位。原始回應還帶
+// person_id（身分證字號）與 username（姓名），外掛查帳只需要
+// broker_id/account_id 挑對戶頭，姓名與身分證字號沒有功能上的必要卻讓
+// 每個外掛都變成個資持有者，所以不投影過去。這個邊界要與 host.ts 的
+// assertAllowedPath deny-list 搭配才成立：宣告用來揭露，deny-list 用來
+// 強制，否則外掛仍可自己 api.get('/api/v1/auth/accounts') 繞過去。
+export interface PluginAccount {
+    account_type: 'S' | 'F';
+    broker_id: string;
+    account_id: string;
+    signed: boolean;
+}
+
 export interface PluginHost {
     apiVersion: number;
     appVersion: string;
@@ -190,6 +203,14 @@ export interface PluginHost {
     storage: {
         get<T>(key: string): T | null;
         set(key: string, value: unknown): void;
+    };
+    accounts: {
+        /** 全部帳戶（含未簽署），供外掛自建選擇器 */
+        list(): Promise<PluginAccount[]>;
+        /** App 當前選擇的帳戶（跟隨 header 帳戶下拉），無則 null */
+        current(type: 'S' | 'F'): Promise<PluginAccount | null>;
+        /** 使用者在 App 切換帳戶時觸發，回傳退訂函數 */
+        onChange(cb: () => void): () => void;
     };
 }
 

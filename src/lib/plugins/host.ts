@@ -2,11 +2,13 @@
 // （未來 iframe 沙箱相容）。v1 刻意不含下單 API。
 
 import { apiGet, apiPost } from '../api';
+import { accountFor, getAccountState, subscribeAccounts } from '../account-store';
 import { trackActivity } from '../activity';
 import { resolveContract, fetchWarrants, subscribeQuote } from '../shioaji';
 import { ensureStream, onAnyTick } from '../stream';
 import { getThemeSettings, getChartColors } from '../theme-store';
-import type { PluginHost, ThemeTokens } from './types';
+import type { Account } from '../types/portfolio';
+import type { PluginAccount, PluginHost, ThemeTokens } from './types';
 import { HOST_API_VERSION } from './types';
 
 // App 版本：build 時由 vite define 注入（見 vite.config.ts 的
@@ -28,10 +30,30 @@ const DENIED_ORDER_PATHS = [
     '/order/cancel_comboorder',
 ];
 
+// 個資邊界：這兩支回傳 person_id（身分證字號）與 username（姓名），外掛
+// 查帳只需要 broker_id/account_id，唯一合法管道是 host.accounts（見
+// types.ts 的 PluginAccount 投影）。單靠權限宣告只是揭露，擋在這裡才是
+// 真邊界；四個外掛目前都沒呼叫這兩支，零破壞。
+const DENIED_ACCOUNT_IDENTITY_PATHS = ['/auth/accounts', '/auth/ca_expiretime'];
+
 function assertAllowedPath(path: string): void {
     if (DENIED_ORDER_PATHS.some((denied) => path.includes(denied))) {
         throw new Error('外掛不可使用下單相關 API（v1 限查詢）');
     }
+    if (DENIED_ACCOUNT_IDENTITY_PATHS.some((denied) => path.includes(denied))) {
+        throw new Error('外掛不可直接查詢帳戶身分資料，請改用 host.accounts');
+    }
+}
+
+// 投影只留 account_type/broker_id/account_id/signed，絕不帶 person_id
+// （身分證字號）與 username（姓名）——見 types.ts PluginAccount 的註解。
+function toPluginAccount(a: Account): PluginAccount {
+    return {
+        account_type: a.account_type as 'S' | 'F',
+        broker_id: a.broker_id,
+        account_id: a.account_id,
+        signed: a.signed,
+    };
 }
 
 function themeTokens(): ThemeTokens {
@@ -136,6 +158,16 @@ export function createHost(
                     // 配額爆了或被瀏覽器封鎖，外掛自己的設定沒存到，不影響面板
                 }
             },
+        },
+        accounts: {
+            list: async () => getAccountState().accounts.map(toPluginAccount),
+            current: async (type) => {
+                // accountFor 回 undefined 代表「讓伺服器挑預設」，投影成
+                // null；它已經保證只回 signed 帳戶，這裡不用再過濾一次
+                const acc = accountFor(type);
+                return acc ? toPluginAccount(acc) : null;
+            },
+            onChange: (cb) => subscribeAccounts(cb),
         },
     };
 }
