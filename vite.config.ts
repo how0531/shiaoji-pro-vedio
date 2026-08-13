@@ -97,8 +97,15 @@ export default defineConfig(({ mode }) => {
             },
         },
         // preview（launcher 走 pnpm preview）與 dev 用同一組新聞代理，
-        // 否則 preview 下新聞會全被 CORS 擋掉
-        preview: { proxy: { ...newsProxy } },
+        // 否則 preview 下新聞會全被 CORS 擋掉。/api 也要一起代理：web
+        // preview 下 getApiBase() 回空字串（非 Tauri），請求會打到 preview
+        // 自己的 origin，沒有這條就全部 404，帳務與行情整片空白。
+        preview: {
+            proxy: {
+                '/api': env.VITE_API_TARGET ?? 'http://127.0.0.1:21322',
+                ...newsProxy,
+            },
+        },
         server: {
             // honor a harness-assigned port (preview tooling sets PORT);
             // default stays 5173 for tauri dev. Bind loopback only so Vite
