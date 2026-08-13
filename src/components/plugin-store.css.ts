@@ -1,7 +1,7 @@
 // src/components/plugin-store.css.ts：外掛商店樣式。
-// 外框比照 panel-library.css.ts 的 backdrop + shell + dialog 三層，卡片
-// 比照 panel-library 的 cardBase（grid：圖示／內容／動作），讓三個選擇器
-// 對話框共用同一套語彙。
+// 外框比照 panel-library.css.ts 的 backdrop + shell + dialog 三層。列表
+// 改比照 bottom-dock.css.ts 的密實 table/cardRow 語彙（每列一條底線分隔，
+// 不再各自套一個完整邊框盒），一列約 48px，一螢幕看得完更多外掛。
 
 import { style, styleVariants } from '@vanilla-extract/css';
 import { vars } from '../theme.css';
@@ -66,10 +66,10 @@ export const body = style({
     padding: `${vars.space.sm} ${vars.space.sm} ${vars.space.md}`,
 });
 
+// 列與列之間靠 item 的底線分隔，不再靠 gap 撐開，密度才出得來
 export const list = style({
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px',
 });
 
 // 分節標題（已安裝／可安裝），比照 panel-library 的 sectionHeader
@@ -119,46 +119,48 @@ export const emptyHint = style({
     textAlign: 'center',
 });
 
-// ---- 卡片 ----
+// ---- 密實列 ----
 
-const cardBase = style({
-    display: 'grid',
-    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-    alignItems: 'start',
-    gap: vars.space.sm,
-    padding: `8px ${vars.space.sm}`,
-    border: `1px solid ${vars.color.border}`,
-    borderRadius: vars.radius.sm,
-    background: 'transparent',
-    color: vars.color.foreground,
-    textAlign: 'left',
-    ':hover': { background: vars.color.muted },
+// 一顆外掛的外層：summary 列＋（可選）錯誤列／展開詳情，底線分隔到下一顆
+export const item = style({
+    borderBottom: `1px solid ${vars.color.border}`,
+    selectors: {
+        '&:last-child': { borderBottom: 'none' },
+    },
 });
 
-export const card = styleVariants({
-    normal: [cardBase, {}],
-    expanded: [
-        cardBase,
-        {
-            borderColor: vars.color.accent,
-            background: vars.color.accentDim,
-            ':hover': { background: vars.color.accentDim },
+const rowBase = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.sm,
+    padding: '8px 10px',
+    outline: 'none',
+    selectors: {
+        '&:hover': { background: vars.color.muted },
+        '&:focus-visible': {
+            outline: `2px solid ${vars.color.accent}`,
+            outlineOffset: '-2px',
         },
-    ],
+    },
+});
+
+export const row = styleVariants({
+    normal: [rowBase, {}],
+    expanded: [rowBase, { background: vars.color.accentDim }],
 });
 
 const iconTileBase = style({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '28px',
-    height: '28px',
+    width: '24px',
+    height: '24px',
     flexShrink: 0,
     borderRadius: vars.radius.sm,
     border: `1px solid ${vars.color.border}`,
     background: vars.color.inset,
     fontFamily: vars.font.display,
-    fontSize: '0.82rem',
+    fontSize: '0.72rem',
     fontWeight: 700,
     lineHeight: 1,
     userSelect: 'none',
@@ -170,33 +172,47 @@ export const iconTile = styleVariants({
     sideload: [iconTileBase, { color: vars.color.amber }],
 });
 
-export const cardMain = style({
+// 名稱＋狀態徽章＋描述同一行，描述截斷吃掉多餘空間
+export const rowMain = style({
     display: 'flex',
-    flexDirection: 'column',
-    gap: '3px',
+    alignItems: 'baseline',
+    gap: '6px',
+    flex: 1,
     minWidth: 0,
+    fontFamily: vars.font.body,
 });
 
-export const cardHead = style({
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: vars.space.xs,
-    fontFamily: vars.font.body,
-    fontSize: '0.78rem',
+export const rowName = style({
+    flexShrink: 0,
+    maxWidth: '11rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontSize: '0.76rem',
     fontWeight: 600,
     color: vars.color.foreground,
 });
 
-export const cardName = style({
+// 單行截斷（原本兩行 clamp），密度優先，完整說明展開詳情看
+export const rowDesc = style({
+    flex: 1,
     minWidth: 0,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+    fontSize: '0.68rem',
+    color: vars.color.mutedForeground,
 });
 
-export const cardVersion = style({
-    marginLeft: 'auto',
+// 風險（點或 chips）＋版本，靠右、不參與截斷
+export const rowMeta = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.xs,
+    flexShrink: 0,
+});
+
+export const rowVersion = style({
     fontFamily: vars.font.mono,
     fontSize: '0.62rem',
     fontWeight: 400,
@@ -204,22 +220,11 @@ export const cardVersion = style({
     whiteSpace: 'nowrap',
 });
 
-export const cardVersionNext = style({
+export const versionNext = style({
     color: vars.color.accent,
 });
 
-// 兩行截斷（原本是 nowrap 單行，完整說明只能靠 title），展開詳情看全文
-export const cardDesc = style({
-    display: '-webkit-box',
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden',
-    fontSize: '0.68rem',
-    lineHeight: 1.45,
-    color: vars.color.mutedForeground,
-});
-
-export const cardError = style({
+export const errorText = style({
     display: '-webkit-box',
     WebkitLineClamp: 2,
     WebkitBoxOrient: 'vertical',
@@ -229,21 +234,26 @@ export const cardError = style({
     color: vars.color.danger,
 });
 
+// 動作列下方單獨一行，寬度對齊 row 的左右內距
+export const rowErrorLine = style({
+    padding: `0 10px 8px`,
+});
+
+// 展開詳情鈕：改成純圖示，密實列容不下「詳細資訊與權限」這種長文案
 export const detailBtn = style({
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '4px',
-    alignSelf: 'flex-start',
-    marginTop: '1px',
+    justifyContent: 'center',
+    width: '20px',
+    height: '20px',
+    flexShrink: 0,
     padding: 0,
     border: 0,
+    borderRadius: vars.radius.sm,
     background: 'transparent',
     color: vars.color.mutedForeground,
-    fontFamily: vars.font.display,
-    fontSize: '0.64rem',
-    fontWeight: 600,
     cursor: 'pointer',
-    ':hover': { color: vars.color.accent },
+    ':hover': { color: vars.color.accent, background: vars.color.muted },
 });
 
 // ---- 權限 ----
@@ -314,13 +324,10 @@ export const permChip = styleVariants({
 });
 
 export const detail = style({
-    gridColumn: '1 / -1',
     display: 'flex',
     flexDirection: 'column',
     gap: vars.space.sm,
-    marginTop: '2px',
-    padding: vars.space.sm,
-    borderTop: `1px solid ${vars.color.border}`,
+    padding: `4px 10px ${vars.space.sm}`,
 });
 
 export const detailLabel = style({
@@ -358,10 +365,27 @@ const permDotBase = style({
     flexShrink: 0,
 });
 
+// 展開詳情裡逐條權限的點：靠 marginTop 對齊文字第一行（permItem 是
+// alignItems: 'start' 的 grid，權限說明可能兩行）
 export const permDot = styleVariants({
     high: [permDotBase, { background: vars.color.danger }],
     medium: [permDotBase, { background: vars.color.amber }],
     low: [permDotBase, { background: vars.color.mutedForeground }],
+});
+
+const riskDotBase = style({
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    flexShrink: 0,
+});
+
+// 商店列上的單顆風險點（已安裝區塊）：置身 rowMeta 這個 alignItems:
+// center 的 flex 列，不需要 permDot 那個對齊文字用的 marginTop
+export const riskDot = styleVariants({
+    high: [riskDotBase, { background: vars.color.danger }],
+    medium: [riskDotBase, { background: vars.color.amber }],
+    low: [riskDotBase, { background: vars.color.mutedForeground }],
 });
 
 export const permText = style({
@@ -477,7 +501,6 @@ export const actions = style({
     alignItems: 'center',
     gap: vars.space.xs,
     flexShrink: 0,
-    marginTop: '1px',
 });
 
 export const actionBtn = style({

@@ -4,10 +4,14 @@
 import { describe, expect, it } from 'vitest';
 import {
     addedPermissions,
+    installConfirmText,
     lookupIcon,
+    needsInstallConfirm,
     PLUGIN_ICONS,
     resolvePermissions,
     riskCounts,
+    riskDotKind,
+    riskDotLabel,
     sortPermissions,
 } from './plugin-store';
 import type { InstalledPlugin } from '../lib/plugins/store';
@@ -205,5 +209,77 @@ describe('lookupIcon', () => {
         expect(lookupIcon('toString')).toBeUndefined();
         expect(lookupIcon('constructor')).toBeUndefined();
         expect(lookupIcon('hasOwnProperty')).toBeUndefined();
+    });
+});
+
+describe('riskDotKind', () => {
+    it('未宣告權限（undefined）回 unknown，不是空陣列的 none', () => {
+        expect(riskDotKind(undefined)).toBe('unknown');
+    });
+
+    it('明確宣告零權限回 none', () => {
+        expect(riskDotKind([])).toBe('none');
+    });
+
+    it('有高風險權限時取最高風險，不管其他等級也在', () => {
+        expect(
+            riskDotKind(['local-settings', 'account-identity', 'market-data']),
+        ).toBe('high');
+    });
+
+    it('沒有高風險但有中風險時回 medium', () => {
+        expect(riskDotKind(['local-settings', 'realtime-quote'])).toBe(
+            'medium',
+        );
+    });
+
+    it('只有低風險權限時回 low', () => {
+        expect(riskDotKind(['local-settings'])).toBe('low');
+    });
+});
+
+describe('riskDotLabel', () => {
+    it('五種 kind 都回傳非空白話字串', () => {
+        const kinds = ['high', 'medium', 'low', 'unknown', 'none'] as const;
+        for (const kind of kinds) {
+            expect(riskDotLabel(kind).length).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe('needsInstallConfirm', () => {
+    it('未宣告權限（風險不明）需要二次確認', () => {
+        expect(needsInstallConfirm(undefined)).toBe(true);
+    });
+
+    it('宣告了任何權限都需要二次確認', () => {
+        expect(needsInstallConfirm(['local-settings'])).toBe(true);
+        expect(needsInstallConfirm(['account-identity'])).toBe(true);
+    });
+
+    it('明確宣告零權限不需要二次確認，直接安裝', () => {
+        expect(needsInstallConfirm([])).toBe(false);
+    });
+});
+
+describe('installConfirmText', () => {
+    it('未宣告權限時說明風險範圍無法確認', () => {
+        expect(installConfirmText(undefined)).toMatch(/風險範圍無法確認/);
+    });
+
+    it('依風險等級列出將授權的項目', () => {
+        const text = installConfirmText([
+            'account-identity',
+            'realtime-quote',
+            'local-settings',
+        ]);
+        expect(text).toMatch(/1 項高風險/);
+        expect(text).toMatch(/1 項中風險/);
+        expect(text).toMatch(/1 項低風險/);
+    });
+
+    it('宣告的權限全是無法辨識的 id 時給出備援文案，不留空白', () => {
+        const ids = ['not-a-real-permission'] as unknown as PluginPermissionId[];
+        expect(installConfirmText(ids)).toMatch(/無法辨識/);
     });
 });
