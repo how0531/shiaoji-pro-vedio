@@ -32,8 +32,13 @@ const DENIED_ORDER_PATHS = [
 
 // 個資邊界：這兩支回傳 person_id（身分證字號）與 username（姓名），外掛
 // 查帳只需要 broker_id/account_id，唯一合法管道是 host.accounts（見
-// types.ts 的 PluginAccount 投影）。單靠權限宣告只是揭露，擋在這裡才是
-// 真邊界；四個外掛目前都沒呼叫這兩支，零破壞。
+// types.ts 的 PluginAccount 投影）。四個外掛目前都沒呼叫這兩支，零破壞。
+//
+// 但這不是硬邊界：bundle 走 script 標籤掛進主 window，與 App 同一個
+// realm，惡意外掛可以直接 window.fetch 打同一個後端，繞過整個 host。
+// 這層擋的是手滑與偷懶（正門走不通就得刻意繞），真正的防線仍是官方審核、
+// manifest 的 sha256 pinning 與 side-load 警告，見 types.ts 頂部的說明。
+// 未來套 iframe 沙箱時，這條 deny-list 才會升級成真邊界。
 const DENIED_ACCOUNT_IDENTITY_PATHS = ['/auth/accounts', '/auth/ca_expiretime'];
 
 function assertAllowedPath(path: string): void {
@@ -46,7 +51,7 @@ function assertAllowedPath(path: string): void {
 }
 
 // 投影只留 account_type/broker_id/account_id/signed，絕不帶 person_id
-// （身分證字號）與 username（姓名）——見 types.ts PluginAccount 的註解。
+// （身分證字號）與 username（姓名），見 types.ts PluginAccount 的註解。
 function toPluginAccount(a: Account): PluginAccount {
     return {
         account_type: a.account_type as 'S' | 'F',
@@ -112,7 +117,7 @@ export function createHost(
                 // 正在看的行情斷掉。取捨是 session 內有界的行情洩漏（這個
                 // 代碼在分頁存活期間仍會持續收到推播），換取不誤傷其他訂閱
                 // 者。要收斂就得把 stream.ts 的訂閱登記表改成「共享訂閱計
-                // 數」，歸零才真的送 unsubscribe——這是之後的升級路徑，不在
+                // 數」，歸零才真的送 unsubscribe，這是之後的升級路徑，不在
                 // v1 host API 範圍內。
                 return () => {
                     off();
@@ -149,7 +154,7 @@ export function createHost(
                 }
             },
             set(key, value) {
-                // 外掛自己的設定寫入失敗（配額/被封鎖）不該讓面板整個炸掉——
+                // 外掛自己的設定寫入失敗（配額/被封鎖）不該讓面板整個炸掉，
                 // v1 host API 的 storage.set 本來就是 fire-and-forget，靜默吞
                 // 掉即可，不像 store.ts 的 saveInstalled 有 rollback 需求
                 try {
