@@ -21,6 +21,7 @@ export const OFFICIAL_STORE_URL =
 
 export const PLUGIN_PERMISSION_IDS = [
     'account-identity',
+    'account-switch',
     'portfolio-read',
     'order-history-read',
     'realtime-quote',
@@ -49,6 +50,17 @@ export const PLUGIN_PERMISSIONS: Record<
         label: '你的身分與券商帳號',
         description:
             '能看到你有哪些券商帳號代碼，不包含姓名、身分證字號與憑證到期日。',
+        risk: 'high',
+    },
+    // 風險評 high：外掛本身不能下單（deny-list 擋住 place_order 等
+    // path），但它能換掉 App 的全域目前帳戶。切走之後，使用者自己手動
+    // 下的單、看的庫存都會進到外掛選的那一戶，不是使用者以為的那一戶，
+    // 這個後果跟外掛直接下單一樣傷，所以不能因為「外掛沒有下單權限」
+    // 就把這個權限評成中低風險。
+    'account-switch': {
+        label: '切換你正在使用的帳戶',
+        description:
+            '能把 App 的目前帳戶換成你的另一個券商帳戶，下單面板與帳務面板都會跟著換。若外掛在你不知情時切換，你後續手動下的單會進到另一個帳戶。',
         risk: 'high',
     },
     'portfolio-read': {
@@ -211,6 +223,12 @@ export interface PluginHost {
         current(type: 'S' | 'F'): Promise<PluginAccount | null>;
         /** 使用者在 App 切換帳戶時觸發，回傳退訂函數 */
         onChange(cb: () => void): () => void;
+        /**
+         * 把 App 的全域目前帳戶換成傳入的帳戶（下單面板、庫存面板、其他
+         * 外掛都會跟著換）。找不到對應帳戶或帳戶未 signed 會 reject，
+         * 不會靜默失敗。對應權限見 PLUGIN_PERMISSIONS 的 'account-switch'。
+         */
+        select(account: PluginAccount): Promise<void>;
     };
 }
 

@@ -30,11 +30,12 @@ vi.mock('../theme-store', () => ({
 vi.mock('../account-store', () => ({
     accountFor: vi.fn(() => undefined),
     getAccountState: vi.fn(() => ({ accounts: [] })),
+    selectAccount: vi.fn(),
     subscribeAccounts: vi.fn(() => () => {}),
 }));
 
 import { apiGet, apiPost } from '../api';
-import { accountFor, getAccountState } from '../account-store';
+import { accountFor, getAccountState, selectAccount } from '../account-store';
 
 describe('createHost API deny-list', () => {
     it('api.post(/api/v1/order/place_order) 被擋下', async () => {
@@ -175,5 +176,96 @@ describe('createHost accounts', () => {
         const host = createHost('test', { onSelectCode: () => {} });
 
         await expect(host.accounts.current('F')).resolves.toBeNull();
+    });
+});
+
+describe('createHost accounts.select', () => {
+    it('select 成功後 accountFor 會回新帳戶', async () => {
+        const fullAccount = {
+            account_type: 'S',
+            person_id: 'A123456789',
+            broker_id: '9A9J',
+            account_id: '9805600',
+            signed: true,
+            username: '王小明',
+        };
+        vi.mocked(getAccountState).mockReturnValueOnce({
+            accounts: [fullAccount],
+            selectedStock: null,
+            selectedFutures: null,
+            loaded: true,
+        });
+        vi.mocked(selectAccount).mockClear();
+        const host = createHost('test', { onSelectCode: () => {} });
+
+        await host.accounts.select({
+            account_type: 'S',
+            broker_id: '9A9J',
+            account_id: '9805600',
+            signed: true,
+        });
+
+        expect(vi.mocked(selectAccount)).toHaveBeenCalledWith(fullAccount);
+
+        // selectAccount 是真正的全域 store，這裡的 mock 只驗證 host 有把
+        // 找回來的完整 Account 交給它；current() 會回什麼則由
+        // accountFor（同樣被 mock）決定，模擬 store 已切換後的狀態。
+        vi.mocked(accountFor).mockReturnValueOnce(fullAccount);
+        await expect(host.accounts.current('S')).resolves.toEqual({
+            account_type: 'S',
+            broker_id: '9A9J',
+            account_id: '9805600',
+            signed: true,
+        });
+    });
+
+    it('select 傳入不存在的帳戶會 reject', async () => {
+        vi.mocked(getAccountState).mockReturnValueOnce({
+            accounts: [],
+            selectedStock: null,
+            selectedFutures: null,
+            loaded: true,
+        });
+        vi.mocked(selectAccount).mockClear();
+        const host = createHost('test', { onSelectCode: () => {} });
+
+        await expect(
+            host.accounts.select({
+                account_type: 'S',
+                broker_id: '9A9J',
+                account_id: '9805600',
+                signed: true,
+            }),
+        ).rejects.toThrow(/找不到/);
+        expect(vi.mocked(selectAccount)).not.toHaveBeenCalled();
+    });
+
+    it('select 傳入未 signed 的帳戶會 reject', async () => {
+        const unsignedAccount = {
+            account_type: 'S',
+            person_id: 'A123456789',
+            broker_id: '9A9J',
+            account_id: '9805600',
+            signed: false,
+            username: '王小明',
+        };
+        vi.mocked(getAccountState).mockReturnValueOnce({
+            accounts: [unsignedAccount],
+            selectedStock: null,
+            selectedFutures: null,
+            loaded: true,
+        });
+        vi.mocked(selectAccount).mockClear();
+        const host = createHost('test', { onSelectCode: () => {} });
+
+        await expect(
+            host.accounts.select({
+                account_type: 'S',
+                broker_id: '9A9J',
+                account_id: '9805600',
+                signed: false,
+            }),
+        ).rejects.toThrow(/簽署/);
+        expect(vi.mocked(selectAccount)).not.toHaveBeenCalled();
     });
 });

@@ -2,7 +2,12 @@
 // （未來 iframe 沙箱相容）。v1 刻意不含下單 API。
 
 import { apiGet, apiPost } from '../api';
-import { accountFor, getAccountState, subscribeAccounts } from '../account-store';
+import {
+    accountFor,
+    getAccountState,
+    selectAccount,
+    subscribeAccounts,
+} from '../account-store';
 import { trackActivity } from '../activity';
 import { resolveContract, fetchWarrants, subscribeQuote } from '../shioaji';
 import { ensureStream, onAnyTick } from '../stream';
@@ -173,6 +178,28 @@ export function createHost(
                 return acc ? toPluginAccount(acc) : null;
             },
             onChange: (cb) => subscribeAccounts(cb),
+            // 外掛手上只有 PluginAccount（四個投影欄位，沒有 person_id），
+            // 沒辦法自己組出 selectAccount 要的完整 Account，所以不是「把
+            // 傳入的物件投影回去」，而是拿 broker_id/account_id/account_type
+            // 三個鍵去 getAccountState().accounts 找回同一戶的完整
+            // Account，這樣才不會讓外掛自己捏造個資欄位混進 store。
+            select: async (account) => {
+                const full = getAccountState().accounts.find(
+                    (a) =>
+                        a.broker_id === account.broker_id &&
+                        a.account_id === account.account_id &&
+                        a.account_type === account.account_type,
+                );
+                if (!full) {
+                    throw new Error('找不到對應的帳戶，無法切換');
+                }
+                // selectAccount 對未 signed 帳戶只會靜默 return，外掛端會
+                // 誤以為切換成功，這裡要主動擋下並丟出錯誤。
+                if (!full.signed) {
+                    throw new Error('這個帳戶尚未完成簽署，無法設為目前帳戶');
+                }
+                selectAccount(full);
+            },
         },
     };
 }
