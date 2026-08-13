@@ -1,10 +1,8 @@
-// src/components/plugin-store.tsx：外掛商店對話框。密實列表，一列一顆外掛
-// （圖示＋名稱＋描述截斷＋風險＋版本＋動作），點展開鈕看完整說明、逐條
-// 權限與來源；安裝前就攤開權限是刻意的：安裝＝在 App 內執行第三方
-// bundle。已安裝的外掛風險只收成一顆色點（使用者早就同意過了），可安裝
-// 的外掛維持文字風險標示，安裝前的知情同意才是重點，敏感權限並要求二次
-// 確認才真正送出安裝。底部收合的開發者模式可 side-load 自訂外掛（僅限
-// 信任來源，操作前要求使用者明確確認風險）。
+// src/components/plugin-store.tsx：外掛商店對話框。分「已安裝」與「可安裝」
+// 兩節，每顆外掛一張卡片（圖示＋狀態徽章＋描述＋權限摘要），可展開看完整
+// 說明、逐條權限與來源；安裝前就攤開權限是刻意的：安裝＝在 App 內執行第三方
+// bundle。底部收合的開發者模式可 side-load 自訂外掛（僅限信任來源，操作前
+// 要求使用者明確確認風險）。
 
 import {
     Activity,
@@ -128,7 +126,7 @@ function badgeOf(
     return { kind: 'installed' };
 }
 
-// 只回短狀態字：版本移到 rowVersion、失敗原因移到展開詳情，徽章不再
+// 只回短狀態字：版本移到 cardVersion、失敗原因移到 cardError，徽章不再
 // 同時當三種資訊的容器（長錯誤訊息會把整列撐爆）
 function badgeLabel(kind: BadgeKind): string {
     switch (kind) {
@@ -211,74 +209,6 @@ export function riskCounts(
     return counts;
 }
 
-// 已安裝外掛的風險只收成一顆色點：使用者安裝當下已經看過完整權限清單，
-// 每次開商店都用滿版紅字再吼一次是噪音，不是資訊。'unknown' 對應舊
-// manifest 沒宣告權限（風險未知，比照 medium 給琥珀），'none' 對應宣告
-// 空陣列（明確零權限，比照 low 給灰）。
-export type RiskDotKind = PluginPermissionRisk | 'unknown' | 'none';
-
-const RISK_DOT_LABEL: Record<RiskDotKind, string> = {
-    high: '含高風險權限',
-    medium: '含中風險權限',
-    low: '僅低風險權限',
-    unknown: '未宣告權限（風險未知）',
-    none: '不需權限',
-};
-
-export function riskDotKind(
-    permissions: PluginPermissionId[] | undefined,
-): RiskDotKind {
-    if (permissions === undefined) return 'unknown';
-    if (permissions.length === 0) return 'none';
-    const counts = riskCounts(permissions);
-    if (counts.high > 0) return 'high';
-    if (counts.medium > 0) return 'medium';
-    return 'low';
-}
-
-export function riskDotLabel(kind: RiskDotKind): string {
-    return RISK_DOT_LABEL[kind];
-}
-
-// 色點只有三種顏色（高風險紅／中風險琥珀／低風險或無灰），unknown 比照
-// medium、none 比照 low，styles.permDot 不需要為了兩個語意變體多開兩組
-// CSS。
-function riskDotVariant(kind: RiskDotKind): PluginPermissionRisk {
-    if (kind === 'unknown') return 'medium';
-    if (kind === 'none') return 'low';
-    return kind;
-}
-
-// 可安裝區塊的知情同意把關：宣告了任何權限（或舊 manifest 未宣告、風險
-// 不明）都要求二次確認才真的送出安裝；明確宣告零權限的外掛沒有東西要
-// 同意，直接裝，不製造無意義的摩擦。
-export function needsInstallConfirm(
-    permissions: PluginPermissionId[] | undefined,
-): boolean {
-    if (permissions === undefined) return true;
-    return permissions.length > 0;
-}
-
-// 二次確認按鈕的 title：把「按下去等於同意什麼」講白話。未宣告權限（風險
-// 不明）與宣告了權限但全部是無法辨識的 id（壞掉的 catalog 資料）各自有
-// 專屬文案，避免顯示「安裝後將授權：」卻後面空白。
-export function installConfirmText(
-    permissions: PluginPermissionId[] | undefined,
-): string {
-    if (permissions === undefined) {
-        return '此外掛未宣告權限（舊版 manifest 格式），風險範圍無法確認，請確認來源可信後再安裝。';
-    }
-    const counts = riskCounts(permissions);
-    const parts: string[] = [];
-    if (counts.high > 0) parts.push(`${counts.high} 項高風險`);
-    if (counts.medium > 0) parts.push(`${counts.medium} 項中風險`);
-    if (counts.low > 0) parts.push(`${counts.low} 項低風險`);
-    if (parts.length === 0) {
-        return '此外掛宣告的權限包含無法辨識的項目，請確認來源可信後再安裝。';
-    }
-    return `安裝後將授權：${parts.join('、')}。確定要繼續安裝嗎？`;
-}
-
 // PLUGIN_ICONS 是物件字面值，`in` / `[]` 索引都會查到 Object.prototype
 // 鏈上的成員（'toString'、'constructor'、'hasOwnProperty'…）。manifest 的
 // icon 欄位是外部字串，若外掛（或壞掉的 catalog）宣告 icon: 'toString'，
@@ -304,7 +234,7 @@ function PluginIcon({
     if (Icon) {
         return (
             <span className={cls} aria-hidden='true'>
-                <Icon size={13} />
+                <Icon size={15} />
             </span>
         );
     }
@@ -322,8 +252,6 @@ function PluginIcon({
     );
 }
 
-// 可安裝區塊用：安裝前的知情同意才是重點，風險要用文字看得見（不是一顆
-// 點就打發），沿用既有的計數 chips。
 function PermissionChips({
     permissions,
 }: {
@@ -362,25 +290,6 @@ function PermissionChips({
                 </span>
             )}
         </div>
-    );
-}
-
-// 已安裝區塊用：使用者早就同意過權限了，只用一顆色點提示最高風險等級，
-// 詳情要看逐條說明就展開。
-function RiskDot({
-    permissions,
-}: {
-    permissions: PluginPermissionId[] | undefined;
-}) {
-    const kind = riskDotKind(permissions);
-    const label = riskDotLabel(kind);
-    return (
-        <span
-            className={styles.riskDot[riskDotVariant(kind)]}
-            role='img'
-            aria-label={label}
-            title={label}
-        />
     );
 }
 
@@ -429,9 +338,7 @@ function PermissionDetail({
 
 // entry 與 installed 至少有一個：未安裝的商店項目只有 entry，side-load
 // 或目錄抓不到的已安裝外掛只有 installed，兩者都在時是「商店裡也裝了」。
-// 密實列表：一列一顆外掛（圖示／名稱＋描述／風險＋版本／動作），點展開
-// 鈕才看完整說明與逐條權限。
-function PluginRow({
+function PluginCard({
     id,
     entry,
     installed,
@@ -458,11 +365,6 @@ function PluginRow({
     onUninstall: () => void;
     error?: string;
 }) {
-    // 安裝前的二次確認：僅這一列自己的狀態，安裝成功後這一列會從「可
-    // 安裝」搬到「已安裝」清單（換一個 React 節點掛載），狀態自然歸零；
-    // 安裝失敗則留在原地讓使用者重試。
-    const [confirmInstall, setConfirmInstall] = useState(false);
-
     const { kind, reason } = badgeOf(entry, installed, loaded);
     const canManage = !!installed; // 已安裝（含已停用/載入失敗/官方下架）都能移除
     // 官方下架的外掛不給啟用開關：setPluginEnabled(id, true) 現在會直接
@@ -483,38 +385,16 @@ function PluginRow({
     const permissions = resolvePermissions(entry, installed);
     const added = showUpdate ? addedPermissions(entry, installed) : [];
     const detailId = `plugin-detail-${id}`;
-    const confirmNeeded = needsInstallConfirm(permissions);
-
-    const handleInstallClick = () => {
-        if (confirmNeeded && !confirmInstall) {
-            setConfirmInstall(true);
-            return;
-        }
-        setConfirmInstall(false);
-        onInstall();
-    };
 
     return (
-        <div className={styles.item}>
-            <div
-                className={styles.row[expanded ? 'expanded' : 'normal']}
-                tabIndex={0}
-            >
-                <PluginIcon icon={icon} name={name} sideloaded={sideloaded} />
-                <div className={styles.rowMain}>
-                    <span className={styles.rowName}>{name}</span>
-                    {kind !== 'notInstalled' && (
-                        <span
-                            className={badgeClass(kind)}
-                            title={
-                                kind === 'failed' && reason
-                                    ? reason
-                                    : undefined
-                            }
-                        >
-                            {badgeLabel(kind)}
-                        </span>
-                    )}
+        <div className={styles.card[expanded ? 'expanded' : 'normal']}>
+            <PluginIcon icon={icon} name={name} sideloaded={sideloaded} />
+            <div className={styles.cardMain}>
+                <span className={styles.cardHead}>
+                    <span className={styles.cardName}>{name}</span>
+                    <span className={badgeClass(kind)}>
+                        {badgeLabel(kind)}
+                    </span>
                     {/* 已安裝但不在商店目錄：沒有來源可比對版本，用副徽章
                         講清楚它的出身（side-load 或目錄裡沒有／抓不到） */}
                     {installed && !entry && (
@@ -530,15 +410,7 @@ function PluginRow({
                                 : '不在商店目錄'}
                         </span>
                     )}
-                    <span className={styles.rowDesc}>{description}</span>
-                </div>
-                <div className={styles.rowMeta}>
-                    {installed ? (
-                        <RiskDot permissions={permissions} />
-                    ) : (
-                        <PermissionChips permissions={permissions} />
-                    )}
-                    <span className={styles.rowVersion}>
+                    <span className={styles.cardVersion}>
                         {installed ? `v${installed.version}` : null}
                         {!installed && entry ? `v${entry.version}` : null}
                         {/* 同版號但 bundle 內容變了（發佈者忘了升版）也算
@@ -548,116 +420,85 @@ function PluginRow({
                             entry &&
                             installed &&
                             (entry.version === installed.version ? (
-                                <span className={styles.versionNext}>
+                                <span className={styles.cardVersionNext}>
                                     {' 內容已更新'}
                                 </span>
                             ) : (
                                 <>
                                     {' → '}
-                                    <span className={styles.versionNext}>
+                                    <span className={styles.cardVersionNext}>
                                         v{entry.version}
                                     </span>
                                 </>
                             ))}
                     </span>
-                </div>
-                <div className={styles.actions}>
-                    {showInstall && !confirmInstall && (
-                        <button
-                            className={styles.actionBtn}
-                            disabled={busy}
-                            onClick={handleInstallClick}
-                        >
-                            {busy ? '處理中…' : '安裝'}
-                        </button>
+                </span>
+                <span className={styles.cardDesc}>{description}</span>
+                {kind === 'failed' && reason && (
+                    <span className={styles.cardError} title={reason}>
+                        載入失敗：{reason}
+                    </span>
+                )}
+                <PermissionChips permissions={permissions} />
+                {error && <span className={styles.cardError}>{error}</span>}
+                <button
+                    className={styles.detailBtn}
+                    aria-expanded={expanded}
+                    aria-controls={detailId}
+                    onClick={onToggleDetail}
+                >
+                    {expanded ? (
+                        <ChevronDown size={11} />
+                    ) : (
+                        <ChevronRight size={11} />
                     )}
-                    {/* 兩段式安裝確認：宣告了權限（或舊 manifest 未宣告、
-                        風險不明）的外掛，第一擊只顯示確認列，第二擊才真的
-                        送出安裝。零權限的外掛不用同意什麼，直接裝。 */}
-                    {showInstall && confirmInstall && (
-                        <>
-                            <button
-                                className={styles.removeBtn}
-                                disabled={busy}
-                                onClick={() => setConfirmInstall(false)}
-                            >
-                                取消
-                            </button>
-                            <button
-                                className={styles.actionBtn}
-                                disabled={busy}
-                                title={installConfirmText(permissions)}
-                                onClick={handleInstallClick}
-                            >
-                                {busy ? '處理中…' : '確認安裝'}
-                            </button>
-                        </>
-                    )}
-                    {showUpdate && (
-                        <button
-                            className={styles.actionBtn}
-                            disabled={busy}
-                            onClick={onUpdate}
-                        >
-                            {busy ? '處理中…' : '更新'}
-                        </button>
-                    )}
-                    {installed && showToggle && (
-                        <button
-                            className={
-                                hud.switchTrack[
-                                    installed.enabled ? 'on' : 'off'
-                                ]
-                            }
-                            role='switch'
-                            aria-checked={installed.enabled}
-                            aria-label={`啟用${name}`}
-                            title={
-                                installed.enabled
-                                    ? '停用此外掛'
-                                    : '啟用此外掛'
-                            }
-                            disabled={busy}
-                            onClick={() => onToggle(!installed.enabled)}
-                        />
-                    )}
-                    {installed && canManage && (
-                        <button
-                            className={styles.removeBtn}
-                            disabled={busy}
-                            onClick={onUninstall}
-                        >
-                            {busy ? '處理中…' : '移除'}
-                        </button>
-                    )}
-                    <button
-                        className={styles.detailBtn}
-                        aria-expanded={expanded}
-                        aria-controls={detailId}
-                        aria-label={expanded ? '收合詳情' : '詳細資訊與權限'}
-                        title={expanded ? '收合詳情' : '詳細資訊與權限'}
-                        onClick={onToggleDetail}
-                    >
-                        {expanded ? (
-                            <ChevronDown size={13} />
-                        ) : (
-                            <ChevronRight size={13} />
-                        )}
-                    </button>
-                </div>
+                    {expanded ? '收合詳情' : '詳細資訊與權限'}
+                </button>
             </div>
-            {error && (
-                <div className={styles.rowErrorLine}>
-                    <span className={styles.errorText}>{error}</span>
-                </div>
-            )}
+            <div className={styles.actions}>
+                {showInstall && (
+                    <button
+                        className={styles.actionBtn}
+                        disabled={busy}
+                        onClick={onInstall}
+                    >
+                        {busy ? '處理中…' : '安裝'}
+                    </button>
+                )}
+                {showUpdate && (
+                    <button
+                        className={styles.actionBtn}
+                        disabled={busy}
+                        onClick={onUpdate}
+                    >
+                        {busy ? '處理中…' : '更新'}
+                    </button>
+                )}
+                {installed && showToggle && (
+                    <button
+                        className={
+                            hud.switchTrack[installed.enabled ? 'on' : 'off']
+                        }
+                        role='switch'
+                        aria-checked={installed.enabled}
+                        aria-label={`啟用${name}`}
+                        title={installed.enabled ? '停用此外掛' : '啟用此外掛'}
+                        disabled={busy}
+                        onClick={() => onToggle(!installed.enabled)}
+                    />
+                )}
+                {installed && canManage && (
+                    <button
+                        className={styles.removeBtn}
+                        disabled={busy}
+                        onClick={onUninstall}
+                    >
+                        {busy ? '處理中…' : '移除'}
+                    </button>
+                )}
+            </div>
             {expanded && (
                 <div className={styles.detail} id={detailId}>
-                    {kind === 'failed' && reason && (
-                        <span className={styles.errorText}>
-                            載入失敗原因：{reason}
-                        </span>
-                    )}
                     <div>
                         <div className={styles.detailLabel}>說明</div>
                         <div className={styles.detailText}>{description}</div>
@@ -816,7 +657,7 @@ export function PluginStoreDialog({
     const { installed, loaded, catalog } = usePluginsState();
     const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
     const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-    // 一次只展開一列：詳情很長（逐條權限），同時開多列會失焦
+    // 一次只展開一張卡片：詳情很長（逐條權限），同時開多張會失焦
     const [detailId, setDetailId] = useState<string | null>(null);
 
     // 分區照使用者的心智：「我裝了什麼」對「我還能裝什麼」。catalog 拿不到
@@ -882,7 +723,7 @@ export function PluginStoreDialog({
         }
     };
 
-    const rowProps = (id: string) => ({
+    const cardProps = (id: string) => ({
         loaded,
         busy: busyIds.has(id),
         error: rowErrors[id],
@@ -955,12 +796,12 @@ export function PluginStoreDialog({
                                 </div>
                                 <div className={styles.list}>
                                     {installed.map((p) => (
-                                        <PluginRow
+                                        <PluginCard
                                             key={p.id}
                                             id={p.id}
                                             entry={entryById.get(p.id)}
                                             installed={p}
-                                            {...rowProps(p.id)}
+                                            {...cardProps(p.id)}
                                         />
                                     ))}
                                 </div>
@@ -976,11 +817,11 @@ export function PluginStoreDialog({
                                 </div>
                                 <div className={styles.list}>
                                     {available.map((entry) => (
-                                        <PluginRow
+                                        <PluginCard
                                             key={entry.id}
                                             id={entry.id}
                                             entry={entry}
-                                            {...rowProps(entry.id)}
+                                            {...cardProps(entry.id)}
                                         />
                                     ))}
                                 </div>
