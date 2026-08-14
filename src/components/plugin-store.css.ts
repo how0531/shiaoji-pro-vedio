@@ -73,6 +73,23 @@ export const list = style({
 });
 
 // 分節標題（已安裝／可安裝），比照 panel-library 的 sectionHeader
+// 分類標題：比 sectionHeader（已安裝／可安裝）低一階，字小一號、不加粗、
+// 左邊縮排，讓「狀態」與「類型」這兩層在視覺上分得開。
+export const groupHeader = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    width: '100%',
+    margin: 0,
+    padding: `4px ${vars.space.xs} 2px 10px`,
+    color: vars.color.mutedForeground,
+    fontFamily: vars.font.display,
+    fontSize: '0.62rem',
+    fontWeight: 500,
+    textAlign: 'left',
+    opacity: 0.85,
+});
+
 export const sectionHeader = style({
     display: 'flex',
     alignItems: 'center',

@@ -50,8 +50,10 @@ import {
     type InstalledPlugin,
 } from '../lib/plugins/store';
 import {
+    PLUGIN_CATEGORIES,
     PLUGIN_PERMISSION_IDS,
     PLUGIN_PERMISSIONS,
+    type PluginCategoryId,
     type PluginPermissionId,
     type PluginPermissionRisk,
     type StoreCatalog,
@@ -687,6 +689,23 @@ export function PluginStoreDialog({
     const available = catalogEntries.filter((e) => !installedIds.has(e.id));
     const updatable = updatableIds({ installed, loaded, catalog });
 
+    // 每一區再依分類分組。分組而不是做篩選鈕，是因為篩選鈕在外掛少的時候
+    // 有一半按了是空的；分組則是外掛越多越有用，少的時候也只是多兩行標題。
+    // 空的分類不渲染，所以四個外掛只會看到「帳務分析」與「選擇權/衍生品」。
+    function groupByCategory<T>(
+        items: T[],
+        categoryOf: (item: T) => PluginCategoryId | undefined,
+    ): { key: PluginCategoryId; label: string; items: T[] }[] {
+        return PLUGIN_CATEGORIES.map((cat) => ({
+            key: cat.key,
+            label: cat.label,
+            // 缺 category 的（舊 manifest）歸到工具，與 types.ts 的約定一致
+            items: items.filter(
+                (item) => (categoryOf(item) ?? 'tools') === cat.key,
+            ),
+        })).filter((g) => g.items.length > 0);
+    }
+
     useEffect(() => {
         if (!open) {
             setDetailId(null);
@@ -843,17 +862,32 @@ export function PluginStoreDialog({
                                         </button>
                                     )}
                                 </div>
-                                <div className={styles.list}>
-                                    {installed.map((p) => (
-                                        <PluginCard
-                                            key={p.id}
-                                            id={p.id}
-                                            entry={entryById.get(p.id)}
-                                            installed={p}
-                                            {...cardProps(p.id)}
-                                        />
-                                    ))}
-                                </div>
+                                {groupByCategory(
+                                    installed,
+                                    (p) => p.manifest.category,
+                                ).map((group) => (
+                                    <div key={group.key}>
+                                        <div className={styles.groupHeader}>
+                                            {group.label}
+                                            <span
+                                                className={styles.sectionCount}
+                                            >
+                                                {group.items.length}
+                                            </span>
+                                        </div>
+                                        <div className={styles.list}>
+                                            {group.items.map((p) => (
+                                                <PluginCard
+                                                    key={p.id}
+                                                    id={p.id}
+                                                    entry={entryById.get(p.id)}
+                                                    installed={p}
+                                                    {...cardProps(p.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </>
                         )}
                         {available.length > 0 && (
@@ -864,16 +898,31 @@ export function PluginStoreDialog({
                                         {available.length}
                                     </span>
                                 </div>
-                                <div className={styles.list}>
-                                    {available.map((entry) => (
-                                        <PluginCard
-                                            key={entry.id}
-                                            id={entry.id}
-                                            entry={entry}
-                                            {...cardProps(entry.id)}
-                                        />
-                                    ))}
-                                </div>
+                                {groupByCategory(
+                                    available,
+                                    (e) => e.category,
+                                ).map((group) => (
+                                    <div key={group.key}>
+                                        <div className={styles.groupHeader}>
+                                            {group.label}
+                                            <span
+                                                className={styles.sectionCount}
+                                            >
+                                                {group.items.length}
+                                            </span>
+                                        </div>
+                                        <div className={styles.list}>
+                                            {group.items.map((entry) => (
+                                                <PluginCard
+                                                    key={entry.id}
+                                                    id={entry.id}
+                                                    entry={entry}
+                                                    {...cardProps(entry.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </>
                         )}
                     </div>
