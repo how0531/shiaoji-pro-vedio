@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { checkCompat, cmpVersion, parseManifest } from './manifest';
-import { PLUGIN_PERMISSION_IDS, PLUGIN_PERMISSIONS } from './types';
+import {
+    PLUGIN_CATEGORIES,
+    PLUGIN_PERMISSION_IDS,
+    PLUGIN_PERMISSIONS,
+} from './types';
+import { PANEL_CATEGORIES } from '../workspace';
 
 const VALID = {
     id: 'statement',
@@ -182,6 +187,49 @@ describe('parseManifest：publisher', () => {
     });
     it('缺 publisher 仍通過且不補欄位（向後相容）', () => {
         expect('publisher' in parseManifest(VALID)).toBe(false);
+    });
+});
+
+describe('parseManifest：category', () => {
+    it('接受合法分類', () => {
+        expect(parseManifest({ ...VALID, category: 'account' }).category).toBe(
+            'account',
+        );
+    });
+    it('五個 key 都被接受', () => {
+        for (const { key } of PLUGIN_CATEGORIES) {
+            expect(parseManifest({ ...VALID, category: key }).category).toBe(
+                key,
+            );
+        }
+    });
+    it('未知分類要拒絕', () => {
+        expect(() =>
+            parseManifest({ ...VALID, category: 'crypto' }),
+        ).toThrow(/category/);
+    });
+    it('非字串要拒絕', () => {
+        expect(() => parseManifest({ ...VALID, category: 42 })).toThrow(
+            /category/,
+        );
+    });
+    it('缺 category 仍通過且不補欄位（向後相容）', () => {
+        const m = parseManifest(VALID);
+        expect('category' in m).toBe(false);
+    });
+});
+
+describe('分類一致性守衛', () => {
+    // PLUGIN_CATEGORIES（商店分類）與 PANEL_CATEGORIES（面板分類）現在
+    // 刻意保持一致：外掛裝完就是變成面板，使用者不該在兩個地方看到不同的
+    // 分類語彙。這個測試防止未來有人只改一邊造成靜默漂移。
+    //
+    // 將來若要刻意讓兩者分家（例如商店長出面板體系沒有的分類），改這個
+    // 測試本身以反映新的設計意圖，而不是刪掉它。
+    it('PLUGIN_CATEGORIES 的 key 集合與 PANEL_CATEGORIES 相同', () => {
+        const pluginKeys = new Set(PLUGIN_CATEGORIES.map((c) => c.key));
+        const panelKeys = new Set(PANEL_CATEGORIES.map((c) => c.key));
+        expect(pluginKeys).toEqual(panelKeys);
     });
 });
 

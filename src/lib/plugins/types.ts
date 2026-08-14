@@ -111,6 +111,25 @@ export const PLUGIN_PERMISSIONS: Record<
     },
 };
 
+// 商店分類。初始值刻意與 workspace.ts 的 PANEL_CATEGORIES 完全相同：
+// 外掛裝完就是變成面板，使用者在「新增面板」已經學過這套語彙，商店另立
+// 一套等於要他學兩次。
+//
+// 但定義放在這裡而不是直接 import PanelCategory，是為了留擴充餘地：外掛
+// 生態長出來後會出現不屬於任何一類的東西（AI 助理擴充、資料匯出工具），
+// 屆時加第六類只要改這個檔案，不必動 upstream 的 workspace.ts（那會增加
+// fork 的衝突面）。什麼時候該拆：tools 佔商店比例超過三成時，那時才有
+// 具體案例知道新分類該叫什麼。
+export const PLUGIN_CATEGORIES = [
+    { key: 'market', label: '行情' },
+    { key: 'trading', label: '交易' },
+    { key: 'account', label: '帳務分析' },
+    { key: 'derivatives', label: '選擇權/衍生品' },
+    { key: 'tools', label: '工具' },
+] as const;
+
+export type PluginCategoryId = (typeof PLUGIN_CATEGORIES)[number]['key'];
+
 export interface PluginManifest {
     id: string;
     name: string;
@@ -120,7 +139,7 @@ export interface PluginManifest {
     entry: string; // 相對於 manifest 所在目錄，如 'index.js'
     sha256: string; // entry bundle 的 sha256 hex
     description: string;
-    // 選填（舊 manifest 沒有這兩欄仍然有效）。
+    // 選填（舊 manifest 沒有這幾欄仍然有效）。
     // permissions：外掛宣告要用的能力，未知 id 在 parseManifest 就被拒。
     permissions?: PluginPermissionId[];
     // icon：lucide 圖示名稱（PascalCase，如 Receipt），或 1 至 2 個字元的
@@ -130,6 +149,9 @@ export interface PluginManifest {
     icon?: string;
     // 選填，商店卡片顯示用（誰發佈這顆外掛）。缺值不影響既有 manifest。
     publisher?: string;
+    // 選填，商店分類。缺值時 UI 端歸到 tools（工具是天然的收容所）。
+    // 這一輪只加契約，商店 UI 尚未讀取這個欄位。
+    category?: PluginCategoryId;
 }
 
 // store.json 的形狀（CI 產生）

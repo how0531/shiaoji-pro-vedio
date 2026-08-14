@@ -2,7 +2,9 @@
 
 import {
     HOST_API_VERSION,
+    PLUGIN_CATEGORIES,
     PLUGIN_PERMISSION_IDS,
+    type PluginCategoryId,
     type PluginManifest,
     type PluginPermissionId,
 } from './types';
@@ -18,6 +20,9 @@ const ICON_BADGE_DENY_RE = /[\p{Cc}\p{Cf}<>&"'`\\/]/u;
 const PUBLISHER_DENY_RE = /[\p{Cc}\p{Cf}<>&"'`]/u;
 
 const KNOWN_PERMISSIONS: ReadonlySet<string> = new Set(PLUGIN_PERMISSION_IDS);
+const KNOWN_CATEGORIES: ReadonlySet<string> = new Set(
+    PLUGIN_CATEGORIES.map((c) => c.key),
+);
 
 function fail(field: string, why: string): never {
     throw new Error(`外掛 manifest 欄位 ${field} ${why}`);
@@ -75,6 +80,14 @@ function parsePublisher(v: unknown): string | undefined {
     return v;
 }
 
+function parseCategory(v: unknown): PluginCategoryId | undefined {
+    if (v === undefined) return undefined;
+    if (typeof v !== 'string' || !KNOWN_CATEGORIES.has(v)) {
+        fail('category', '必須是已知分類 key 之一');
+    }
+    return v as PluginCategoryId;
+}
+
 export function parseManifest(raw: unknown): PluginManifest {
     if (typeof raw !== 'object' || raw === null) {
         throw new Error('外掛 manifest 不是物件');
@@ -96,6 +109,7 @@ export function parseManifest(raw: unknown): PluginManifest {
     const permissions = parsePermissions(r.permissions);
     const icon = parseIcon(r.icon);
     const publisher = parsePublisher(r.publisher);
+    const category = parseCategory(r.category);
     const manifest: PluginManifest = {
         id,
         name: str('name'),
@@ -110,6 +124,7 @@ export function parseManifest(raw: unknown): PluginManifest {
     if (permissions) manifest.permissions = permissions;
     if (icon !== undefined) manifest.icon = icon;
     if (publisher !== undefined) manifest.publisher = publisher;
+    if (category !== undefined) manifest.category = category;
     return manifest;
 }
 
