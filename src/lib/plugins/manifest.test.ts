@@ -109,6 +109,116 @@ describe('parseManifest：permissions', () => {
     });
 });
 
+describe('parseManifest：permissionNotes', () => {
+    it('接受對得上 permissions 的情境說明', () => {
+        const m = parseManifest({
+            ...VALID,
+            permissions: ['portfolio-read', 'market-data'],
+            permissionNotes: {
+                'portfolio-read': '只用來讀融資融券庫存算維持率。',
+            },
+        });
+        expect(m.permissionNotes).toEqual({
+            'portfolio-read': '只用來讀融資融券庫存算維持率。',
+        });
+    });
+    it('允許只寫其中幾條（Partial）', () => {
+        const m = parseManifest({
+            ...VALID,
+            permissions: ['portfolio-read', 'market-data'],
+            permissionNotes: { 'market-data': '查商品基本資料。' },
+        });
+        expect(Object.keys(m.permissionNotes ?? {})).toEqual(['market-data']);
+    });
+    it('孤兒 key（未出現在 permissions）要拒絕', () => {
+        expect(() =>
+            parseManifest({
+                ...VALID,
+                permissions: ['market-data'],
+                permissionNotes: { 'account-switch': '幫你切到融資戶。' },
+            }),
+        ).toThrow(/permissionNotes/);
+    });
+    it('沒宣告 permissions 卻寫 notes 要拒絕', () => {
+        expect(() =>
+            parseManifest({
+                ...VALID,
+                permissionNotes: { 'market-data': '查商品基本資料。' },
+            }),
+        ).toThrow(/permissionNotes/);
+    });
+    it('未知權限 key 要拒絕', () => {
+        expect(() =>
+            parseManifest({
+                ...VALID,
+                permissions: ['market-data'],
+                permissionNotes: { 'place-order': '幫你下單。' },
+            }),
+        ).toThrow(/permissionNotes/);
+    });
+    it('接受剛好 80 字、拒絕 81 字', () => {
+        const ok = '維'.repeat(80);
+        expect(
+            parseManifest({
+                ...VALID,
+                permissions: ['market-data'],
+                permissionNotes: { 'market-data': ok },
+            }).permissionNotes?.['market-data'],
+        ).toBe(ok);
+        expect(() =>
+            parseManifest({
+                ...VALID,
+                permissions: ['market-data'],
+                permissionNotes: { 'market-data': '維'.repeat(81) },
+            }),
+        ).toThrow(/permissionNotes/);
+    });
+    it('拒絕換行與雙向覆寫字元', () => {
+        for (const bad of ['第一行\n第二行', '正常‮反向']) {
+            expect(() =>
+                parseManifest({
+                    ...VALID,
+                    permissions: ['market-data'],
+                    permissionNotes: { 'market-data': bad },
+                }),
+            ).toThrow(/permissionNotes/);
+        }
+    });
+    it('拒絕空字串、純空白與非字串', () => {
+        for (const bad of ['', '   ', 42]) {
+            expect(() =>
+                parseManifest({
+                    ...VALID,
+                    permissions: ['market-data'],
+                    permissionNotes: { 'market-data': bad },
+                }),
+            ).toThrow(/permissionNotes/);
+        }
+    });
+    it('允許引號與中文括號（比 publisher 寬鬆）', () => {
+        const note = '只讀「融資融券」庫存，不碰其他資料。';
+        expect(
+            parseManifest({
+                ...VALID,
+                permissions: ['portfolio-read'],
+                permissionNotes: { 'portfolio-read': note },
+            }).permissionNotes?.['portfolio-read'],
+        ).toBe(note);
+    });
+    it('permissionNotes 非物件或陣列要拒絕', () => {
+        expect(() =>
+            parseManifest({ ...VALID, permissionNotes: '理由' }),
+        ).toThrow(/permissionNotes/);
+        expect(() => parseManifest({ ...VALID, permissionNotes: [] })).toThrow(
+            /permissionNotes/,
+        );
+    });
+    it('缺 permissionNotes 仍通過且不補欄位（向後相容）', () => {
+        const m = parseManifest({ ...VALID, permissions: ['market-data'] });
+        expect('permissionNotes' in m).toBe(false);
+    });
+});
+
 describe('parseManifest：icon', () => {
     it('接受 lucide 圖示名稱', () => {
         expect(parseManifest({ ...VALID, icon: 'Receipt' }).icon).toBe(

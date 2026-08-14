@@ -4,6 +4,7 @@ import {
     HOST_API_VERSION,
     PLUGIN_CATEGORIES,
     PLUGIN_PERMISSION_IDS,
+    PLUGIN_PERMISSION_NOTE_MAX,
     type PluginCategoryId,
     type PluginManifest,
     type PluginPermissionId,
@@ -18,6 +19,13 @@ const ICON_NAME_RE = /^[A-Za-z][A-Za-z0-9]{0,31}$/;
 const ICON_BADGE_DENY_RE = /[\p{Cc}\p{Cf}<>&"'`\\/]/u;
 // publisher 比照 icon 角標的嚴謹度：排除控制字元、格式字元與標記符號
 const PUBLISHER_DENY_RE = /[\p{Cc}\p{Cf}<>&"'`]/u;
+// permissionNotes 的每一句：只擋控制字元（含換行，權限清單要單段落，
+// 多行會撐破列高）與格式字元（U+202E 這種雙向覆寫能在視覺上把句子倒過來
+// 讀，是偽造文案的經典手法）。
+// 刻意比 PUBLISHER_DENY_RE 寬鬆，不擋 <>&"'` ：中文情境句一定會用到「」
+// 與引號，而 React 本來就跳脫文字節點，這裡的 deny-list 是防視覺偽造不是
+// 防 XSS，把引號擋掉只會逼發佈者寫出不像人話的句子。
+const PERMISSION_NOTE_DENY_RE = /[\p{Cc}\p{Cf}]/u;
 
 const KNOWN_PERMISSIONS: ReadonlySet<string> = new Set(PLUGIN_PERMISSION_IDS);
 const KNOWN_CATEGORIES: ReadonlySet<string> = new Set(
@@ -51,6 +59,48 @@ function parsePermissions(v: unknown): PluginPermissionId[] | undefined {
         }
         const id = item as PluginPermissionId;
         if (!out.includes(id)) out.push(id); // 重複宣告只留一筆，商店不重複列
+    }
+    return out;
+}
+
+// undefined = manifest 沒宣告（舊版相容）。key 必須同時是已知權限、且出現
+// 在同一份 manifest 已解析的 permissions 裡，否則 fail：孤兒 note 永遠不會
+// 被顯示（商店的清單以 permissions 為準），靜默丟掉會讓發佈者以為寫好了；
+// 而且孤兒 note 多半是刪權限時忘了刪理由，留著就是過期文案。
+function parsePermissionNotes(
+    v: unknown,
+    permissions: PluginPermissionId[] | undefined,
+): Partial<Record<PluginPermissionId, string>> | undefined {
+    if (v === undefined) return undefined;
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) {
+        fail('permissionNotes', '必須是物件');
+    }
+    const declared = new Set<string>(permissions ?? []);
+    const out: Partial<Record<PluginPermissionId, string>> = {};
+    // 用 entries 逐筆取值，不用 in／索引，避免 prototype 上的鍵被當成資料
+    for (const [key, note] of Object.entries(v as Record<string, unknown>)) {
+        if (!KNOWN_PERMISSIONS.has(key)) {
+            fail('permissionNotes', `含未知權限「${key.slice(0, 32)}」`);
+        }
+        if (!declared.has(key)) {
+            fail(
+                'permissionNotes',
+                `的「${key}」未出現在 permissions，請一併宣告或移除`,
+            );
+        }
+        if (typeof note !== 'string' || note.trim() === '') {
+            fail('permissionNotes', `的「${key}」必須是非空字串`);
+        }
+        if (Array.from(note).length > PLUGIN_PERMISSION_NOTE_MAX) {
+            fail(
+                'permissionNotes',
+                `的「${key}」超過 ${PLUGIN_PERMISSION_NOTE_MAX} 字`,
+            );
+        }
+        if (PERMISSION_NOTE_DENY_RE.test(note)) {
+            fail('permissionNotes', `的「${key}」不可含控制字元或格式字元`);
+        }
+        out[key as PluginPermissionId] = note;
     }
     return out;
 }
@@ -107,6 +157,7 @@ export function parseManifest(raw: unknown): PluginManifest {
     const sha256 = str('sha256');
     if (!/^[0-9a-f]{64}$/.test(sha256)) fail('sha256', '必須是 64 位 hex');
     const permissions = parsePermissions(r.permissions);
+    const permissionNotes = parsePermissionNotes(r.permissionNotes, permissions);
     const icon = parseIcon(r.icon);
     const publisher = parsePublisher(r.publisher);
     const category = parseCategory(r.category);
@@ -122,6 +173,7 @@ export function parseManifest(raw: unknown): PluginManifest {
     };
     // 沒宣告就不要補上空欄位，讓「未宣告」與「宣告為空」在下游可分辨
     if (permissions) manifest.permissions = permissions;
+    if (permissionNotes) manifest.permissionNotes = permissionNotes;
     if (icon !== undefined) manifest.icon = icon;
     if (publisher !== undefined) manifest.publisher = publisher;
     if (category !== undefined) manifest.category = category;

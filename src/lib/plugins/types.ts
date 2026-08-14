@@ -111,6 +111,21 @@ export const PLUGIN_PERMISSIONS: Record<
     },
 };
 
+// 商店權限區底部的固定一行，講 host 對所有外掛一律成立的邊界。
+// 【為什麼是 App 端常數而不是 manifest 欄位】外掛不可以自己保證「我不會
+// 取得姓名」「我沒有下單權限」：那是 host 的事實（PluginAccount 投影只給
+// 四欄、host.ts 的 deny-list 擋下單 path），由被稽核的一方自述等於把稽核
+// 責任丟給使用者。外掛只能說「我為什麼要碰」（permissionNotes），
+// 「它碰不到什麼」一律由這裡陳述。
+export const PLUGIN_HOST_GUARANTEE =
+    '所有外掛一律拿不到你的姓名與身分證字號（App 只交出券商代號與帳號末碼），也沒有任何下單、改單、刪單的管道；資料只在你這台電腦與永豐 Shioaji 之間往返。';
+
+// permissionNotes 每一句的長度上限（code point 數）。
+// 80 的來源：現有最長的通用描述（account-switch）約 65 字，留一點緩衝，
+// 又不至於讓人把整段行銷文塞進權限清單把卡片撐爆。
+// manifest.ts 用它驗證（超過直接 fail），商店 UI 用它截斷未驗證的目錄資料。
+export const PLUGIN_PERMISSION_NOTE_MAX = 80;
+
 // 商店分類。初始值刻意與 workspace.ts 的 PANEL_CATEGORIES 完全相同：
 // 外掛裝完就是變成面板，使用者在「新增面板」已經學過這套語彙，商店另立
 // 一套等於要他學兩次。
@@ -152,6 +167,20 @@ export interface PluginManifest {
     // 選填，商店分類。缺值時 UI 端歸到 tools（工具是天然的收容所）。
     // 這一輪只加契約，商店 UI 尚未讀取這個欄位。
     category?: PluginCategoryId;
+    // 選填（舊 manifest 沒有這一欄仍然有效）。逐權限一句話的情境說明：
+    // permissions 回答「這顆外掛碰得到什麼」，permissionNotes 回答「它為
+    // 什麼要碰」（如「只用來讀融資融券庫存算維持率」）。
+    //
+    // key 必須出現在同一份 manifest 的 permissions 裡，parseManifest 會擋掉
+    // 對不上的孤兒 note（見 manifest.ts 的 parsePermissionNotes）：孤兒 note
+    // 永遠不會被顯示，靜默丟掉會讓發佈者以為寫好了、使用者卻永遠看不到。
+    // 缺這一欄或某一項沒寫，商店退回 PLUGIN_PERMISSIONS 的通用描述，
+    // 不留空白。每句長度上限見 PLUGIN_PERMISSION_NOTE_MAX。
+    //
+    // 【刻意不收否定式保證】不要在這裡寫「不會取得姓名與身分證字號」
+    // 「不具下單權限」這類自我擔保，那是 host 的邊界事實，
+    // 由 PLUGIN_HOST_GUARANTEE 固定陳述才可信。
+    permissionNotes?: Partial<Record<PluginPermissionId, string>>;
 }
 
 // store.json 的形狀（CI 產生）
@@ -174,9 +203,51 @@ export interface PluginPanelDef {
     Component: React.ComponentType<PluginPanelProps>;
 }
 
+// 狀態列小工具（頂欄常駐的一格數字）。props 與面板同語意：
+// null 代表全域沒選商品。
+export interface PluginWidgetProps {
+    code: string | null;
+}
+
+export interface PluginWidgetDef {
+    key: string;
+    // 設定裡的開關名稱，也是頂欄 chip 左側的小標與 a11y 名稱
+    label: string;
+    // 只填「值」，外框（chip 殼、高度、字級）由 host 畫。
+    // 【渲染預算】host 給的框是固定高度的單行 chip，並且會限制最大寬度、
+    // 溢位裁切、contain 內容。外掛只放純文字、數字與 inline 元素（span、
+    // 小 inline svg、7px 圓點），可用 host.ui.theme() 的 danger/warning/
+    // up/down 上色；不要用 block 排版、img、position: fixed/absolute。
+    // 建議自行節流到 4 Hz 以下：這是使用者視線正上方的常駐位置。
+    // v1 的 chip 是靜態的（可以有 title），刻意不做點擊互動，
+    // 等指令列那一輪有了統一的「外掛觸發 App 動作」機制再一起接。
+    Component: React.ComponentType<PluginWidgetProps>;
+    // 首次看到這個 key 時的種子值，host 只讀這一次就寫進使用者偏好。
+    // 之後外掛升版、重裝、改 defaultOn 都不會翻掉使用者的決定。
+    defaultOn?: boolean;
+}
+
+// activate() 的回傳值。名字沿用 PluginPanels（它現在其實是 contribution
+// bag），刻意不改名：這是 SDK 公開型別，改名會讓已發佈外掛的原始碼編不過，
+// 命名整潔不值得付相容性代價。
 export interface PluginPanels {
     panels: PluginPanelDef[];
+    // 選填：舊 bundle 只回 { panels } 完全不受影響。
+    // 每顆外掛最多 PLUGIN_WIDGETS_PER_PLUGIN_MAX 個，超過的在註冊時被截斷
+    // （面板照常運作，不讓整個 activate 失敗）。
+    widgets?: PluginWidgetDef[];
 }
+
+// 每顆外掛最多能註冊幾個 widget。有這條上限，頂欄的位子就不只是先搶先贏。
+export const PLUGIN_WIDGETS_PER_PLUGIN_MAX = 2;
+
+// 頂欄同時顯示的 widget 總數上限。
+// 3 的來源：頂欄滿配時已有 logo、環境徽章、加權、基差、銀行水位、LIVE、
+// 伺服器、風控、＋新增面板、版面、外掛、全開、設定、時鐘；3 × 8rem 在
+// 1280px 視窗已是極限。訂 4 以上就得做溢位選單，而溢位選單要在頂欄多一顆
+// 「⋯」按鈕，那是版面改動。所以改成「開不了第 4 個」：上限在偏好層擋
+// （第 4 個開關 disabled 並說明原因），渲染層再以穩定順序取前 3 個保險。
+export const PLUGIN_HEADER_WIDGETS_MAX = 3;
 
 export interface WarrantFilters {
     underlyingCode: string;
