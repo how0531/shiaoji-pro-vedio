@@ -30,6 +30,7 @@ import {
     Puzzle,
     Receipt,
     ScrollText,
+    Search,
     ShieldAlert,
     Table,
     Ticket,
@@ -68,6 +69,21 @@ type CatalogEntry = StoreCatalog['plugins'][number];
 const UNDECLARED_NOTICE =
     '此外掛沒有宣告權限（舊版 manifest 格式）。這不代表它不會存取資料：外掛與 App 在同一個環境執行，仍可能讀到帳務、行情與本機設定。請確認來源可信再安裝。';
 const OFFLINE_NOTICE = '無法取得外掛目錄（離線？），已安裝的外掛不受影響';
+
+// ---- 規模化門檻 ----
+// 外掛數低於門檻時，對應的導覽層完全不渲染（不是隱藏，是不存在），維持
+// 現有單頁兩區的樣子；四個外掛不該為了分頁而多長出一整條導覽列。三個常數
+// 分開命名，讓未來各自獨立調整（例如篩選比分頁早浮現）不用互相牽動，
+// 現在三者都給 12。
+const TAB_THRESHOLD = 12;
+const SEARCH_THRESHOLD = 12;
+const FILTER_THRESHOLD = 12;
+
+// 效能取捨：不引入虛擬化套件（會新增 runtime dependency，違反專案規則）。
+// 改成每個分頁最多渲染這麼多張卡，超過的用搜尋／分類縮小範圍，而不是把
+// 上百張卡全部塞進 DOM。這是刻意的陽春解法：60 張卡的渲染成本目前沒有
+// 被實測過是瓶頸，真的需要虛擬化時，先量出瓶頸確實存在，再做，不要先做。
+const RENDER_LIMIT = 60;
 
 // manifest 的 icon 欄位若命中這份 allowlist 就畫成 lucide 元件，比照
 // layout-library.tsx 的 PROFILE_ICONS（同樣是「字串存進資料、App 端查表」）。
@@ -219,6 +235,50 @@ export function riskCounts(
 // 當成 React 元件渲染會炸掉。Object.hasOwn 只認字面值裡真的存在的鍵。
 export function lookupIcon(icon: string): LucideIcon | undefined {
     return Object.hasOwn(PLUGIN_ICONS, icon) ? PLUGIN_ICONS[icon] : undefined;
+}
+
+// ---- 搜尋與分類篩選（純函式，供測試；已安裝 InstalledPlugin 與商店
+// CatalogEntry 兩種形狀在呼叫端各自投影成這個最小介面後再共用一套邏輯）----
+
+export interface PluginListItem {
+    id: string;
+    name: string;
+    description: string;
+    category: PluginCategoryId;
+}
+
+// name／description／id 三欄比對（大小寫不敏感），category 為 'all' 時
+// 不篩分類。純函數不吃 React 狀態，query 為空字串時只做分類篩選（或原樣
+// 回傳，順序不變）。
+export function filterPlugins<T extends PluginListItem>(
+    items: readonly T[],
+    { query, category }: { query: string; category: PluginCategoryId | 'all' },
+): T[] {
+    const scoped =
+        category === 'all'
+            ? items
+            : items.filter((item) => item.category === category);
+    const q = query.trim().toLowerCase();
+    if (!q) return [...scoped];
+    return scoped.filter(
+        (item) =>
+            item.name.toLowerCase().includes(q) ||
+            item.description.toLowerCase().includes(q) ||
+            item.id.toLowerCase().includes(q),
+    );
+}
+
+// 分類 chip 的數量統計，固定回傳 PLUGIN_CATEGORIES 五個 key。數量為 0 的
+// 分類要不要渲染成 chip由呼叫端決定（商店規則：0 個的 chip 不顯示，避免
+// 按了是空的）。
+export function countByCategory(
+    items: readonly { category: PluginCategoryId }[],
+): Record<PluginCategoryId, number> {
+    const counts = Object.fromEntries(
+        PLUGIN_CATEGORIES.map((c) => [c.key, 0]),
+    ) as Record<PluginCategoryId, number>;
+    for (const item of items) counts[item.category] += 1;
+    return counts;
 }
 
 // icon 解析三段（與 manifest 契約一致）：命中 allowlist 畫 lucide 元件 →
@@ -679,6 +739,13 @@ export function PluginStoreDialog({
         done: number;
         total: number;
     } | null>(null);
+    // 狀態分頁／搜尋／分類：只有外掛數過門檻才會出現對應的導覽層，見下方
+    // showTabs／showSearch／showFilters。三者共用，不特別依 tab 各自重置，
+    // 例如在「探索」搜了關鍵字後切到「我的外掛」，保留搜尋字串比清空更符合
+    // 「我剛剛在找同一個東西」的直覺。
+    const [tab, setTab] = useState<'mine' | 'explore'>('mine');
+    const [query, setQuery] = useState('');
+    const [category, setCategory] = useState<PluginCategoryId | 'all'>('all');
 
     // 分區照使用者的心智：「我裝了什麼」對「我還能裝什麼」。catalog 拿不到
     // （離線）時所有已安裝外掛仍列在「已安裝」，可安裝為 0，管理流程不因
@@ -706,9 +773,143 @@ export function PluginStoreDialog({
         })).filter((g) => g.items.length > 0);
     }
 
+    // ---- 導覽層：狀態分頁／搜尋／分類篩選，只在外掛數過門檻時生效 ----
+    // installed／available 投影成 PluginListItem 供 filterPlugins／
+    // countByCategory 共用比對邏輯，額外掛一個回指原始物件的欄位
+    // （plugin／entry），篩完之後不用另外查表就能把原始物件丟給 PluginCard。
+    const installedItems = installed.map((p) => ({
+        id: p.id,
+        name: p.manifest.name,
+        description: p.manifest.description,
+        category: p.manifest.category ?? ('tools' as PluginCategoryId),
+        plugin: p,
+    }));
+    const availableItems = available.map((e) => ({
+        id: e.id,
+        name: e.name,
+        description: e.description,
+        category: e.category ?? ('tools' as PluginCategoryId),
+        entry: e,
+    }));
+
+    const totalCount = installed.length + available.length;
+    const showTabs = totalCount >= TAB_THRESHOLD;
+    const showSearch = totalCount >= SEARCH_THRESHOLD;
+    const showFilters = totalCount >= FILTER_THRESHOLD;
+    // 門檻未達標時導覽層不存在，query／category 就算有殘留狀態也不套用，
+    // 兩區維持完全等同現況的單頁清單。
+    const appliedQuery = showSearch ? query : '';
+    const appliedCategory = showFilters ? category : 'all';
+    const groupHeadersVisible = appliedCategory === 'all';
+
+    const filteredInstalled = filterPlugins(installedItems, {
+        query: appliedQuery,
+        category: appliedCategory,
+    });
+    const filteredAvailable = filterPlugins(availableItems, {
+        query: appliedQuery,
+        category: appliedCategory,
+    });
+
+    // 分類 chip 的數量：只依「目前分頁的關鍵字比對結果」統計（不受目前選取
+    // 的分類影響），這樣切換分類時每個 chip 的數字不會跟著自己歸零，使用者
+    // 才看得出換一類還剩多少可選。沒有分頁時（外掛還不多）以兩區合計為範圍。
+    const chipScope = showTabs
+        ? tab === 'mine'
+            ? installedItems
+            : availableItems
+        : [...installedItems, ...availableItems];
+    const chipScopeFiltered = filterPlugins(chipScope, {
+        query: appliedQuery,
+        category: 'all',
+    });
+    const categoryCounts = countByCategory(chipScopeFiltered);
+    const visibleChips = PLUGIN_CATEGORIES.filter(
+        (c) => categoryCounts[c.key] > 0,
+    );
+
+    // RENDER_LIMIT 取捨（見常數定義處的說明）：分組渲染時依 PLUGIN_CATEGORIES
+    // 的順序累加張數，額度用完就整組不收；未分組（已篩到單一分類）時直接
+    // 對篩選結果切片。兩種情況都回傳「還有幾個沒畫出來」供底部提示使用。
+    function capGroups<T>(
+        groups: { key: PluginCategoryId; label: string; items: T[] }[],
+    ): {
+        groups: { key: PluginCategoryId; label: string; items: T[] }[];
+        overflow: number;
+    } {
+        const total = groups.reduce((n, g) => n + g.items.length, 0);
+        let remaining = RENDER_LIMIT;
+        const capped: typeof groups = [];
+        for (const g of groups) {
+            if (remaining <= 0) break;
+            if (g.items.length <= remaining) {
+                capped.push(g);
+                remaining -= g.items.length;
+            } else {
+                capped.push({ ...g, items: g.items.slice(0, remaining) });
+                remaining = 0;
+            }
+        }
+        return { groups: capped, overflow: Math.max(0, total - RENDER_LIMIT) };
+    }
+
+    function renderSectionBody<T extends { category: PluginCategoryId }>(
+        items: T[],
+        renderCard: (item: T) => React.ReactNode,
+    ): React.ReactNode {
+        if (groupHeadersVisible) {
+            const { groups, overflow } = capGroups(
+                groupByCategory(items, (item) => item.category),
+            );
+            return (
+                <>
+                    {groups.map((group) => (
+                        <div key={group.key}>
+                            <div className={styles.groupHeader}>
+                                {group.label}
+                                <span className={styles.sectionCount}>
+                                    {group.items.length}
+                                </span>
+                            </div>
+                            <div className={styles.list}>
+                                {group.items.map(renderCard)}
+                            </div>
+                        </div>
+                    ))}
+                    {overflow > 0 && (
+                        <div className={styles.overflowHint}>
+                            還有 {overflow} 個，請用搜尋或分類縮小範圍
+                        </div>
+                    )}
+                </>
+            );
+        }
+        const capped = items.slice(0, RENDER_LIMIT);
+        const overflow = items.length - capped.length;
+        return (
+            <>
+                <div className={styles.list}>{capped.map(renderCard)}</div>
+                {overflow > 0 && (
+                    <div className={styles.overflowHint}>
+                        還有 {overflow} 個，請用搜尋或分類縮小範圍
+                    </div>
+                )}
+            </>
+        );
+    }
+
+    function noResultsHint(): string {
+        return appliedQuery.trim()
+            ? `找不到符合「${appliedQuery.trim()}」的外掛`
+            : '這個分類目前沒有外掛';
+    }
+
     useEffect(() => {
         if (!open) {
             setDetailId(null);
+            setTab('mine');
+            setQuery('');
+            setCategory('all');
             return;
         }
         const onKey = (e: KeyboardEvent) => {
@@ -824,6 +1025,99 @@ export function PluginStoreDialog({
                         </button>
                     </div>
 
+                    {/* 導覽層：狀態分頁＋搜尋同一列（比照商店規劃文件 30+ 規模的
+                        版面），分類 chips 另起一列。三者各自依門檻獨立出現，
+                        卡片本身完全不受影響，見上方 showTabs／showSearch／
+                        showFilters 的計算。 */}
+                    {(showTabs || showSearch) && (
+                        <div className={styles.controlRow}>
+                            {showTabs && (
+                                <div className={styles.tabGroup}>
+                                    <button
+                                        className={
+                                            styles.tabBtn[
+                                                tab === 'mine'
+                                                    ? 'active'
+                                                    : 'normal'
+                                            ]
+                                        }
+                                        onClick={() => setTab('mine')}
+                                    >
+                                        我的外掛
+                                        <span className={styles.countBadge}>
+                                            {installed.length}
+                                        </span>
+                                    </button>
+                                    <button
+                                        className={
+                                            styles.tabBtn[
+                                                tab === 'explore'
+                                                    ? 'active'
+                                                    : 'normal'
+                                            ]
+                                        }
+                                        onClick={() => setTab('explore')}
+                                    >
+                                        探索
+                                        <span className={styles.countBadge}>
+                                            {available.length}
+                                        </span>
+                                    </button>
+                                </div>
+                            )}
+                            {showSearch && (
+                                <div className={styles.searchBox}>
+                                    <Search size={14} />
+                                    <input
+                                        className={styles.searchInput}
+                                        placeholder='搜尋外掛（名稱或用途）'
+                                        value={query}
+                                        onChange={(e) =>
+                                            setQuery(e.target.value)
+                                        }
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {showFilters && visibleChips.length > 0 && (
+                        <div className={styles.filterRow}>
+                            <button
+                                className={
+                                    styles.filterChip[
+                                        category === 'all'
+                                            ? 'active'
+                                            : 'normal'
+                                    ]
+                                }
+                                onClick={() => setCategory('all')}
+                            >
+                                全部
+                                <span className={styles.countBadge}>
+                                    {chipScopeFiltered.length}
+                                </span>
+                            </button>
+                            {visibleChips.map((c) => (
+                                <button
+                                    key={c.key}
+                                    className={
+                                        styles.filterChip[
+                                            category === c.key
+                                                ? 'active'
+                                                : 'normal'
+                                        ]
+                                    }
+                                    onClick={() => setCategory(c.key)}
+                                >
+                                    {c.label}
+                                    <span className={styles.countBadge}>
+                                        {categoryCounts[c.key]}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
                     <div className={styles.body}>
                         {catalog === null && (
                             <div className={styles.offlineHint}>
@@ -841,90 +1135,96 @@ export function PluginStoreDialog({
                                     目前沒有可用外掛
                                 </div>
                             )}
-                        {installed.length > 0 && (
-                            <>
-                                <div className={styles.sectionHeader}>
-                                    已安裝
-                                    <span className={styles.sectionCount}>
-                                        {installed.length}
-                                    </span>
-                                    {/* 少於 3 個可更新時不出現：一個一個按
-                                        還不麻煩，不需要多一顆按鈕 */}
-                                    {updatable.length >= 3 && (
-                                        <button
-                                            className={styles.actionBtn}
-                                            disabled={bulkBusy}
-                                            onClick={() => void onUpdateAll()}
-                                        >
-                                            {bulkBusy && bulkProgress
-                                                ? `更新中 ${bulkProgress.done}/${bulkProgress.total}`
-                                                : '全部更新'}
-                                        </button>
+                        {(!showTabs || tab === 'mine') &&
+                            (installed.length > 0 ? (
+                                <>
+                                    <div className={styles.sectionHeader}>
+                                        已安裝
+                                        <span className={styles.sectionCount}>
+                                            {filteredInstalled.length}
+                                        </span>
+                                        {/* 少於 3 個可更新時不出現：一個一個
+                                            按還不麻煩，不需要多一顆按鈕 */}
+                                        {updatable.length >= 3 && (
+                                            <button
+                                                className={styles.actionBtn}
+                                                disabled={bulkBusy}
+                                                onClick={() =>
+                                                    void onUpdateAll()
+                                                }
+                                            >
+                                                {bulkBusy && bulkProgress
+                                                    ? `更新中 ${bulkProgress.done}/${bulkProgress.total}`
+                                                    : '全部更新'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {filteredInstalled.length === 0 ? (
+                                        <div className={styles.emptyHint}>
+                                            {noResultsHint()}
+                                        </div>
+                                    ) : (
+                                        renderSectionBody(
+                                            filteredInstalled,
+                                            (item) => (
+                                                <PluginCard
+                                                    key={item.plugin.id}
+                                                    id={item.plugin.id}
+                                                    entry={entryById.get(
+                                                        item.plugin.id,
+                                                    )}
+                                                    installed={item.plugin}
+                                                    {...cardProps(
+                                                        item.plugin.id,
+                                                    )}
+                                                />
+                                            ),
+                                        )
                                     )}
-                                </div>
-                                {groupByCategory(
-                                    installed,
-                                    (p) => p.manifest.category,
-                                ).map((group) => (
-                                    <div key={group.key}>
-                                        <div className={styles.groupHeader}>
-                                            {group.label}
-                                            <span
-                                                className={styles.sectionCount}
-                                            >
-                                                {group.items.length}
-                                            </span>
-                                        </div>
-                                        <div className={styles.list}>
-                                            {group.items.map((p) => (
-                                                <PluginCard
-                                                    key={p.id}
-                                                    id={p.id}
-                                                    entry={entryById.get(p.id)}
-                                                    installed={p}
-                                                    {...cardProps(p.id)}
-                                                />
-                                            ))}
-                                        </div>
+                                </>
+                            ) : (
+                                showTabs && (
+                                    <div className={styles.emptyHint}>
+                                        尚未安裝任何外掛，切換到「探索」開始安裝
                                     </div>
-                                ))}
-                            </>
-                        )}
-                        {available.length > 0 && (
-                            <>
-                                <div className={styles.sectionHeader}>
-                                    可安裝
-                                    <span className={styles.sectionCount}>
-                                        {available.length}
-                                    </span>
-                                </div>
-                                {groupByCategory(
-                                    available,
-                                    (e) => e.category,
-                                ).map((group) => (
-                                    <div key={group.key}>
-                                        <div className={styles.groupHeader}>
-                                            {group.label}
-                                            <span
-                                                className={styles.sectionCount}
-                                            >
-                                                {group.items.length}
-                                            </span>
-                                        </div>
-                                        <div className={styles.list}>
-                                            {group.items.map((entry) => (
-                                                <PluginCard
-                                                    key={entry.id}
-                                                    id={entry.id}
-                                                    entry={entry}
-                                                    {...cardProps(entry.id)}
-                                                />
-                                            ))}
-                                        </div>
+                                )
+                            ))}
+                        {(!showTabs || tab === 'explore') &&
+                            (available.length > 0 ? (
+                                <>
+                                    <div className={styles.sectionHeader}>
+                                        可安裝
+                                        <span className={styles.sectionCount}>
+                                            {filteredAvailable.length}
+                                        </span>
                                     </div>
-                                ))}
-                            </>
-                        )}
+                                    {filteredAvailable.length === 0 ? (
+                                        <div className={styles.emptyHint}>
+                                            {noResultsHint()}
+                                        </div>
+                                    ) : (
+                                        renderSectionBody(
+                                            filteredAvailable,
+                                            (item) => (
+                                                <PluginCard
+                                                    key={item.entry.id}
+                                                    id={item.entry.id}
+                                                    entry={item.entry}
+                                                    {...cardProps(
+                                                        item.entry.id,
+                                                    )}
+                                                />
+                                            ),
+                                        )
+                                    )}
+                                </>
+                            ) : (
+                                showTabs && (
+                                    <div className={styles.emptyHint}>
+                                        目前沒有可安裝的外掛
+                                    </div>
+                                )
+                            ))}
                     </div>
 
                     <DevSection />

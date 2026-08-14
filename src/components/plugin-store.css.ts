@@ -66,6 +66,135 @@ export const body = style({
     padding: `${vars.space.sm} ${vars.space.sm} ${vars.space.md}`,
 });
 
+// ---- 導覽層：狀態分頁／搜尋／分類篩選（只在外掛數過門檻時出現）----
+// 搜尋框樣式直接沿用 panel-library.css.ts 的 searchRow／searchInput 數值
+// （padding、字級、色彩皆同），商店與面板選擇器兩個對話框共用同一套搜尋
+// 互動語彙，不另做一套。
+
+export const controlRow = style({
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: vars.space.md,
+    padding: `${vars.space.sm} ${vars.space.md}`,
+    borderBottom: `1px solid ${vars.color.border}`,
+});
+
+export const tabGroup = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+});
+
+const tabBtnBase = style({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    fontFamily: vars.font.display,
+    fontSize: '0.72rem',
+    fontWeight: 600,
+    padding: '5px 11px',
+    cursor: 'pointer',
+    borderRadius: vars.radius.sm,
+    border: `1px solid ${vars.color.border}`,
+    background: vars.color.inset,
+    color: vars.color.mutedForeground,
+    transition: 'all 0.12s',
+    ':hover': { color: vars.color.foreground },
+});
+
+export const tabBtn = styleVariants({
+    normal: [tabBtnBase, {}],
+    active: [
+        tabBtnBase,
+        {
+            color: vars.color.accent,
+            borderColor: vars.color.accent,
+            background: vars.color.accentDim,
+        },
+    ],
+});
+
+// 分頁／分類 chip 共用的小數字角標
+export const countBadge = style({
+    fontFamily: vars.font.mono,
+    fontSize: '0.64rem',
+    fontWeight: 400,
+    opacity: 0.85,
+});
+
+export const searchBox = style({
+    display: 'flex',
+    alignItems: 'center',
+    gap: vars.space.sm,
+    flex: 1,
+    minWidth: '160px',
+    color: vars.color.mutedForeground,
+});
+
+// 比照 panel-library.css.ts 的 searchInput
+export const searchInput = style({
+    flex: 1,
+    minWidth: 0,
+    padding: '6px 0',
+    border: 0,
+    outline: 'none',
+    background: 'transparent',
+    color: vars.color.foreground,
+    fontFamily: vars.font.body,
+    fontSize: '0.82rem',
+    '::placeholder': { color: vars.color.mutedForeground },
+});
+
+export const filterRow = style({
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '5px',
+    padding: `${vars.space.xs} ${vars.space.md} ${vars.space.sm}`,
+    borderBottom: `1px solid ${vars.color.border}`,
+});
+
+const filterChipBase = style({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontFamily: vars.font.display,
+    fontSize: '0.66rem',
+    fontWeight: 600,
+    padding: '3px 10px',
+    borderRadius: '999px',
+    cursor: 'pointer',
+    border: `1px solid ${vars.color.border}`,
+    background: vars.color.inset,
+    color: vars.color.mutedForeground,
+    whiteSpace: 'nowrap',
+    transition: 'all 0.12s',
+    ':hover': { color: vars.color.foreground, borderColor: vars.color.borderBright },
+});
+
+export const filterChip = styleVariants({
+    normal: [filterChipBase, {}],
+    active: [
+        filterChipBase,
+        {
+            color: vars.color.accent,
+            borderColor: vars.color.accent,
+            background: vars.color.accentDim,
+        },
+    ],
+});
+
+// RENDER_LIMIT 截斷後的提示（見 plugin-store.tsx 常數定義處的取捨說明）
+export const overflowHint = style({
+    padding: `${vars.space.sm} ${vars.space.md}`,
+    color: vars.color.mutedForeground,
+    fontSize: '0.68rem',
+    textAlign: 'center',
+    borderTop: `1px dashed ${vars.color.border}`,
+    marginTop: vars.space.xs,
+});
+
 export const list = style({
     display: 'flex',
     flexDirection: 'column',

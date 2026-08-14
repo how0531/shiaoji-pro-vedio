@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'vitest';
 import {
     addedPermissions,
+    countByCategory,
+    filterPlugins,
     lookupIcon,
+    type PluginListItem,
     PLUGIN_ICONS,
     resolvePermissions,
     riskCounts,
@@ -189,6 +192,121 @@ describe('PLUGIN_ICONS', () => {
         for (const name of officialIcons) {
             expect(PLUGIN_ICONS[name], name).toBeTruthy();
         }
+    });
+});
+
+function listItem(over: Partial<PluginListItem> = {}): PluginListItem {
+    return {
+        id: 'demo',
+        name: '示範外掛',
+        description: '示範用途',
+        category: 'tools',
+        ...over,
+    };
+}
+
+describe('filterPlugins', () => {
+    it('query 為空、category 為 all 時原樣回傳（順序不變）', () => {
+        const items = [
+            listItem({ id: 'a' }),
+            listItem({ id: 'b' }),
+            listItem({ id: 'c' }),
+        ];
+        expect(filterPlugins(items, { query: '', category: 'all' })).toEqual(
+            items,
+        );
+    });
+
+    it('比對 name（大小寫不敏感）', () => {
+        const items = [
+            listItem({ id: 'a', name: 'Warrant Finder' }),
+            listItem({ id: 'b', name: '融資券到期明細' }),
+        ];
+        expect(
+            filterPlugins(items, { query: 'warrant', category: 'all' }),
+        ).toEqual([items[0]]);
+    });
+
+    it('比對 description', () => {
+        const items = [
+            listItem({ id: 'a', description: '查詢整戶維持率' }),
+            listItem({ id: 'b', description: '權證搜尋工具' }),
+        ];
+        expect(
+            filterPlugins(items, { query: '維持率', category: 'all' }),
+        ).toEqual([items[0]]);
+    });
+
+    it('比對 id', () => {
+        const items = [
+            listItem({ id: 'margin-ratio', name: '整戶維持率' }),
+            listItem({ id: 'warrant-finder', name: '個股對應權證' }),
+        ];
+        expect(
+            filterPlugins(items, { query: 'margin', category: 'all' }),
+        ).toEqual([items[0]]);
+    });
+
+    it('query 前後空白與大小寫都不影響比對', () => {
+        const items = [listItem({ id: 'a', name: 'Warrant Finder' })];
+        expect(
+            filterPlugins(items, { query: '  WARRANT  ', category: 'all' }),
+        ).toEqual(items);
+    });
+
+    it('category 篩選（非 all 時忽略 query 為空的情況仍套用分類）', () => {
+        const items = [
+            listItem({ id: 'a', category: 'account' }),
+            listItem({ id: 'b', category: 'derivatives' }),
+        ];
+        expect(
+            filterPlugins(items, { query: '', category: 'account' }),
+        ).toEqual([items[0]]);
+    });
+
+    it('分類與關鍵字可疊加', () => {
+        const items = [
+            listItem({ id: 'a', category: 'account', name: '對帳單' }),
+            listItem({ id: 'b', category: 'account', name: '維持率' }),
+            listItem({ id: 'c', category: 'derivatives', name: '對帳單副本' }),
+        ];
+        expect(
+            filterPlugins(items, { query: '對帳單', category: 'account' }),
+        ).toEqual([items[0]]);
+    });
+
+    it('找不到符合條件時回傳空陣列', () => {
+        const items = [listItem({ id: 'a' })];
+        expect(
+            filterPlugins(items, { query: '找不到的字串', category: 'all' }),
+        ).toEqual([]);
+    });
+});
+
+describe('countByCategory', () => {
+    it('固定回傳五個分類 key，各自統計數量', () => {
+        const items = [
+            listItem({ category: 'account' }),
+            listItem({ category: 'account' }),
+            listItem({ category: 'derivatives' }),
+        ];
+        expect(countByCategory(items)).toEqual({
+            market: 0,
+            trading: 0,
+            account: 2,
+            derivatives: 1,
+            tools: 0,
+        });
+    });
+
+    it('空陣列時每個分類都是 0（不是缺 key）', () => {
+        expect(countByCategory([])).toEqual({
+            market: 0,
+            trading: 0,
+            account: 0,
+            derivatives: 0,
+            tools: 0,
+        });
     });
 });
 
