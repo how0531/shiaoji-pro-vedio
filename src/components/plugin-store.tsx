@@ -42,6 +42,7 @@ import { useEffect, useState } from 'react';
 import {
     hasUpdate,
     installPlugin,
+    listLoadedPanels,
     setPluginEnabled,
     sideloadPlugin,
     uninstallPlugin,
@@ -52,13 +53,17 @@ import {
 } from '../lib/plugins/store';
 import {
     PLUGIN_CATEGORIES,
+    PLUGIN_HOST_GUARANTEE,
     PLUGIN_PERMISSION_IDS,
+    PLUGIN_PERMISSION_NOTE_MAX,
     PLUGIN_PERMISSIONS,
     type PluginCategoryId,
+    type PluginPanelDef,
     type PluginPermissionId,
     type PluginPermissionRisk,
     type StoreCatalog,
 } from '../lib/plugins/types';
+import { notify } from '../lib/trade';
 import * as hud from './hud-header.css';
 import * as styles from './plugin-store.css';
 
@@ -211,6 +216,57 @@ export function addedPermissions(
     return sortPermissions(next.filter((id) => !current.includes(id)));
 }
 
+// 逐權限的用途說明。與 resolvePermissions 同一套規則：已安裝的以本機
+// manifest 為準（正在跑的是它），未安裝的以 catalog entry 為準。
+export function resolvePermissionNotes(
+    entry: CatalogEntry | undefined,
+    installed: InstalledPlugin | undefined,
+): Partial<Record<PluginPermissionId, string>> | undefined {
+    if (installed) return installed.manifest.permissionNotes;
+    return entry?.permissionNotes;
+}
+
+// 控制字元擋掉換行（權限清單要單段落，多行會破壞 permItem 的行高），
+// 格式字元擋掉 U+202E 這種雙向覆寫（能在視覺上把句子倒過來讀，是偽造
+// 文案的經典手法）。
+const NOTE_STRIP_RE = /[\p{Cc}\p{Cf}]/gu;
+
+// UI 端的第二道防線，不可省：parseManifest 只驗過「已安裝」那一份，
+// 未安裝外掛的 note 來自 fetchCatalog（只做 as StoreCatalog，逐筆未驗證）。
+// 取值一律走 Object.hasOwn（避免 Object.prototype 上的成員被當成 note）、
+// 檢查型別與空白、清掉控制與格式字元，再依 PLUGIN_PERMISSION_NOTE_MAX 截斷。
+// 回傳 null 代表「沒有可用的用途說明」，呼叫端退回通用描述。
+export function permissionNoteText(
+    notes: Partial<Record<PluginPermissionId, string>> | undefined,
+    id: PluginPermissionId,
+): string | null {
+    if (!notes || typeof notes !== 'object') return null;
+    const raw = Object.hasOwn(notes, id) ? notes[id] : undefined;
+    if (typeof raw !== 'string') return null;
+    const cleaned = raw.replace(NOTE_STRIP_RE, '').trim();
+    if (cleaned === '') return null;
+    return Array.from(cleaned).slice(0, PLUGIN_PERMISSION_NOTE_MAX).join('');
+}
+
+// ---- 安裝完成後要做什麼（安裝即置入）----
+// 純函式：只看外掛掛上了幾個面板就決定動線，不碰 React 樹，方便單獨測試。
+// 一個面板才自動置入；多個面板不猜（一次加五格才真的是擅自改版面），改成
+// 在原地列出面板讓使用者點一下；零面板的外掛只提供背景能力，版面不動。
+export type PlacementPlan =
+    | { kind: 'place'; panelKey: string }
+    | { kind: 'choose' }
+    | { kind: 'none' };
+
+export function planPlacement(
+    panels: readonly { key: string }[],
+): PlacementPlan {
+    if (panels.length === 0) return { kind: 'none' };
+    if (panels.length === 1) {
+        return { kind: 'place', panelKey: panels[0]!.key };
+    }
+    return { kind: 'choose' };
+}
+
 // ids 來自 catalog（fetchCatalog 只做 `as StoreCatalog`，未逐筆驗證），
 // store.json 若混進拼錯或未知的權限 id，PLUGIN_PERMISSIONS[id] 會是
 // undefined，直接索引 .risk 就 throw。先過 sortPermissions（它只保留
@@ -358,8 +414,10 @@ function PermissionChips({
 
 function PermissionDetail({
     permissions,
+    notes,
 }: {
     permissions: PluginPermissionId[] | undefined;
+    notes: Partial<Record<PluginPermissionId, string>> | undefined;
 }) {
     if (permissions === undefined) {
         return (
@@ -378,6 +436,9 @@ function PermissionDetail({
         <div className={styles.permList}>
             {sortPermissions(permissions).map((id) => {
                 const info = PLUGIN_PERMISSIONS[id];
+                // 有用途說明就用外掛自己的話（它才知道為什麼要碰），
+                // 缺這一項就退回通用描述，不留空白
+                const note = permissionNoteText(notes, id);
                 return (
                     <div key={id} className={styles.permItem}>
                         <span
@@ -388,9 +449,18 @@ function PermissionDetail({
                             <span className={styles.permLabel}>
                                 {info.label}
                             </span>
-                            <span className={styles.permDesc}>
-                                {info.description}
-                            </span>
+                            {note ? (
+                                <span className={styles.permNote}>
+                                    <span className={styles.permNoteTag}>
+                                        用途
+                                    </span>
+                                    <span>{note}</span>
+                                </span>
+                            ) : (
+                                <span className={styles.permDesc}>
+                                    {info.description}
+                                </span>
+                            )}
                         </span>
                     </div>
                 );
@@ -414,6 +484,9 @@ function PluginCard({
     onToggle,
     onUninstall,
     error,
+    panels,
+    isPanelPlaced,
+    onPlacePanel,
 }: {
     id: string;
     entry?: CatalogEntry;
@@ -427,6 +500,10 @@ function PluginCard({
     onToggle: (on: boolean) => void;
     onUninstall: () => void;
     error?: string;
+    // 這顆外掛目前掛上的面板（未安裝／已停用時是空陣列）
+    panels: PluginPanelDef[];
+    isPanelPlaced: (pluginId: string, panelKey: string) => boolean;
+    onPlacePanel: (pluginId: string, panelKey: string) => void;
 }) {
     const { kind, reason } = badgeOf(entry, installed, loaded);
     const canManage = !!installed; // 已安裝（含已停用/載入失敗/官方下架）都能移除
@@ -447,8 +524,18 @@ function PluginCard({
     const publisher = installed?.manifest.publisher ?? entry?.publisher;
     const sideloaded = installed?.sideloaded ?? false;
     const permissions = resolvePermissions(entry, installed);
+    const permissionNotes = resolvePermissionNotes(entry, installed);
     const added = showUpdate ? addedPermissions(entry, installed) : [];
     const detailId = `plugin-detail-${id}`;
+
+    // 安裝即置入的補救入口：面板剛好一個時，安裝當下已經自動放到版面底部，
+    // 這顆按鈕是給「面板被關掉之後想再放回來」用的，所以只在面板不在版面上
+    // 時出現。既有的更新／啟用開關／移除三顆位置與順序完全不動。
+    const soloPanel = panels.length === 1 ? panels[0]! : null;
+    const showPlaceBtn = !!soloPanel && !isPanelPlaced(id, soloPanel.key);
+    // 多面板外掛不自動置入（一次加五格才真的是擅自改版面），改成在原地列出
+    // 面板讓使用者點一下，痛點（關商店、開面板庫、在分類裡找）仍然被解掉
+    const showPanelChips = panels.length > 1;
 
     return (
         <div className={styles.card[expanded ? 'expanded' : 'normal']}>
@@ -516,6 +603,33 @@ function PluginCard({
                     分級留在下方「詳細資訊與權限」展開區，安裝前要看得到的
                     知情同意在那裡，不在這一排紅字。 */}
                 {error && <span className={styles.cardError}>{error}</span>}
+                {showPanelChips && (
+                    <div className={styles.panelChipRow}>
+                        {panels.map((p) => {
+                            const placed = isPanelPlaced(id, p.key);
+                            return (
+                                <button
+                                    key={p.key}
+                                    className={
+                                        styles.panelChip[
+                                            placed ? 'placed' : 'add'
+                                        ]
+                                    }
+                                    title={
+                                        placed
+                                            ? `${p.label} 已在版面上，點擊帶你過去`
+                                            : `把「${p.label}」加到版面底部`
+                                    }
+                                    onClick={() => onPlacePanel(id, p.key)}
+                                >
+                                    {placed
+                                        ? `${p.label}（已在版面）`
+                                        : `＋ ${p.label}`}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
                 <button
                     className={styles.detailBtn}
                     aria-expanded={expanded}
@@ -531,6 +645,16 @@ function PluginCard({
                 </button>
             </div>
             <div className={styles.actions}>
+                {showPlaceBtn && soloPanel && (
+                    <button
+                        className={styles.actionBtn}
+                        disabled={busy}
+                        title={`把「${soloPanel.label}」加到版面底部`}
+                        onClick={() => onPlacePanel(id, soloPanel.key)}
+                    >
+                        加入版面
+                    </button>
+                )}
                 {showInstall && (
                     <button
                         className={styles.actionBtn}
@@ -582,7 +706,15 @@ function PluginCard({
                         <div className={styles.detailLabel}>
                             這個外掛能存取什麼
                         </div>
-                        <PermissionDetail permissions={permissions} />
+                        <PermissionDetail
+                            permissions={permissions}
+                            notes={permissionNotes}
+                        />
+                        {/* App 端固定文案，講 host 對所有外掛一律成立的
+                            邊界。與外掛自述分開：外掛說的話不能拿來當保證 */}
+                        <div className={styles.hostGuarantee}>
+                            {PLUGIN_HOST_GUARANTEE}
+                        </div>
                     </div>
                     {added.length > 0 && (
                         <div className={styles.permNotice}>
@@ -725,9 +857,15 @@ function DevSection() {
 export function PluginStoreDialog({
     open,
     onClose,
+    onPlacePanel,
+    isPanelPlaced,
 }: {
     open: boolean;
     onClose: () => void;
+    // 把外掛面板加到版面底部（已在版面上就只帶使用者過去），由 App 提供：
+    // 它同時負責關閉商店、捲動並閃一次那一格、發通知
+    onPlacePanel: (pluginId: string, panelKey: string) => void;
+    isPanelPlaced: (pluginId: string, panelKey: string) => boolean;
 }) {
     const { installed, loaded, catalog } = usePluginsState();
     const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
@@ -755,6 +893,16 @@ export function PluginStoreDialog({
     const entryById = new Map(catalogEntries.map((e) => [e.id, e]));
     const available = catalogEntries.filter((e) => !installedIds.has(e.id));
     const updatable = updatableIds({ installed, loaded, catalog });
+
+    // 每次 render 建一次索引：listLoadedPanels() 逐張卡各叫一次會是 O(n²)。
+    // 這裡讀的是 runtime 註冊表，安裝／停用／移除都會連帶讓 usePluginsState()
+    // 觸發重繪，所以拿到的一定是當下的狀態。
+    const panelsById = new Map<string, PluginPanelDef[]>();
+    for (const { pluginId, panel } of listLoadedPanels()) {
+        const list = panelsById.get(pluginId);
+        if (list) list.push(panel);
+        else panelsById.set(pluginId, [panel]);
+    }
 
     // 每一區再依分類分組。分組而不是做篩選鈕，是因為篩選鈕在外掛少的時候
     // 有一半按了是空的；分組則是外掛越多越有用，少的時候也只是多兩行標題。
@@ -979,16 +1127,50 @@ export function PluginStoreDialog({
         }
     };
 
+    // 安裝成功後才置入（失敗照舊落到 rowErrors，版面一格都不動）。
+    // 動線分三種，見 planPlacement 的說明。
+    const afterInstall = (id: string, name: string) => {
+        const panels = listLoadedPanels()
+            .filter((x) => x.pluginId === id)
+            .map((x) => x.panel);
+        const plan = planPlacement(panels);
+        if (plan.kind === 'place') {
+            onPlacePanel(id, plan.panelKey);
+            return;
+        }
+        if (plan.kind === 'choose') {
+            notify({
+                kind: 'info',
+                title: '已安裝',
+                body: `${name} 提供多個面板，請在卡片上選擇要放到版面的那一個`,
+            });
+            return;
+        }
+        // 只提供背景能力的外掛：版面不動，也不假裝加了什麼
+        notify({
+            kind: 'ok',
+            title: '已安裝',
+            body: `${name} 已安裝完成`,
+        });
+    };
+
     const cardProps = (id: string) => ({
         loaded,
         busy: busyIds.has(id),
         error: rowErrors[id],
         expanded: detailId === id,
+        panels: panelsById.get(id) ?? [],
+        isPanelPlaced,
+        onPlacePanel,
         onToggleDetail: () =>
             setDetailId((current) => (current === id ? null : id)),
         onInstall: () => {
             const target = entryById.get(id);
-            if (target) void withBusy(id, () => installPlugin(target));
+            if (!target) return;
+            void withBusy(id, async () => {
+                await installPlugin(target);
+                afterInstall(target.id, target.name);
+            });
         },
         onUpdate: () => void withBusy(id, () => updatePlugin(id)),
         onToggle: (on: boolean) =>

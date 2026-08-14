@@ -845,16 +845,19 @@ export default function App() {
             const singleton = panelDef?.singleton ?? meta.singleton;
             const defaultSize = panelDef?.defaultSize ?? meta.defaultSize;
             const label = panelDef?.label ?? meta.label;
-            const alreadyPresent = plugin
-                ? workspace.blocks.some(
+            const existing = plugin
+                ? workspace.blocks.find(
                       (b) =>
                           b.type === 'plugin' &&
                           b.pluginId === plugin.pluginId &&
                           b.panelKey === plugin.panelKey,
                   )
-                : workspace.blocks.some((b) => b.type === type);
-            if (singleton && alreadyPresent) {
-                return;
+                : workspace.blocks.find((b) => b.type === type);
+            // singleton 已存在時行為不變（版面一格都不動），但要把既有那一格
+            // 的 id 回報給呼叫端：商店的「安裝即置入」需要它才能捲過去閃一下，
+            // 否則從商店按下去會變成「按了沒反應」
+            if (singleton && existing) {
+                return { id: existing.id, created: false };
             }
             trackActivity('開面板', label);
             const id = newBlockId(type);
@@ -884,6 +887,7 @@ export default function App() {
                 ],
                 layout: [...workspace.layout, item],
             });
+            return { id, created: true };
         },
         [workspace, updateWorkspace],
     );
@@ -908,6 +912,57 @@ export default function App() {
             );
         });
     }, []);
+
+    // 安裝即置入：商店裝完（或事後從卡片按「加入版面」）把外掛面板放到版面
+    // 底部。順序是先加、再關商店、再捲動，避免對話框還蓋著就捲。
+    //
+    // 【為什麼這不算擅自改版面】addBlock 給的是 y: Infinity，配上 RGL 的
+    // 預設 vertical compact，新格子一律落在最底，既有每一格的 x/y/w/h 一個
+    // 都不會變；加完立刻捲過去閃一次，使用者看得見發生什麼事；那一格自帶
+    // 關閉鈕，一次點擊就還原。
+    const placePluginPanel = useCallback(
+        (pluginId: string, panelKey: string) => {
+            const label = getPanelDef(pluginId, panelKey)?.label ?? '外掛面板';
+            // 非 singleton 的面板可以多開，但安裝流程不重複加：已經在版面上
+            // 就只帶使用者過去看
+            const existing = workspace.blocks.find(
+                (b) =>
+                    b.type === 'plugin' &&
+                    b.pluginId === pluginId &&
+                    b.panelKey === panelKey,
+            );
+            const placed = existing
+                ? { id: existing.id, created: false }
+                : addBlock('plugin', { pluginId, panelKey });
+            setPluginStoreOpen(false);
+            locateBlock(placed.id);
+            notify(
+                placed.created
+                    ? {
+                          kind: 'ok',
+                          title: '已加入版面',
+                          body: `${label} 已加到版面底部，不需要可直接關閉這一格`,
+                      }
+                    : {
+                          kind: 'info',
+                          title: '已在版面上',
+                          body: `${label} 已經在版面上`,
+                      },
+            );
+        },
+        [workspace.blocks, addBlock, locateBlock],
+    );
+
+    const isPluginPanelPlaced = useCallback(
+        (pluginId: string, panelKey: string) =>
+            workspace.blocks.some(
+                (b) =>
+                    b.type === 'plugin' &&
+                    b.pluginId === pluginId &&
+                    b.panelKey === panelKey,
+            ),
+        [workspace.blocks],
+    );
 
     const removeBlock = useCallback(
         (id: string) => {
@@ -1128,6 +1183,7 @@ export default function App() {
                 flashCodes={items
                     .filter((i) => i.contract.security_type !== 'IND')
                     .map((i) => i.contract.code)}
+                selectedCode={selected?.code ?? null}
             />
             <EventToasts onEvent={refreshTrading} />
             <CommandPalette
@@ -1147,6 +1203,8 @@ export default function App() {
             <PluginStoreDialog
                 open={pluginStoreOpen}
                 onClose={() => setPluginStoreOpen(false)}
+                onPlacePanel={placePluginPanel}
+                isPanelPlaced={isPluginPanelPlaced}
             />
 
             <div className={grid.gridWrap} ref={containerRef}>

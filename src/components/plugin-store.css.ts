@@ -383,6 +383,55 @@ export const cardError = style({
     color: vars.color.danger,
 });
 
+// ---- 面板置入（安裝即置入）----
+// 多面板外掛的面板選擇列，掛在 cardMain 之下、detailBtn 之上。純新增區塊，
+// 卡片原有的圖示、名稱、徽章、版本、描述、動作排列一律不動。
+export const panelChipRow = style({
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '4px',
+    marginTop: '1px',
+});
+
+const panelChipBase = {
+    fontFamily: vars.font.display,
+    fontSize: '0.62rem',
+    fontWeight: 600,
+    padding: '2px 8px',
+    borderRadius: '999px',
+    border: '1px solid',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap' as const,
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    transition: 'all 0.12s',
+};
+
+export const panelChip = styleVariants({
+    add: [
+        panelChipBase,
+        {
+            color: vars.color.accent,
+            borderColor: vars.color.border,
+            background: vars.color.inset,
+            ':hover': { borderColor: vars.color.accent },
+        },
+    ],
+    // 已經在版面上的面板：比照 panel-library 的 existingId 語意，改成
+    // 「帶你過去看」而不是再加一格，兩處行為一致使用者才不會困惑
+    placed: [
+        panelChipBase,
+        {
+            color: vars.color.mutedForeground,
+            borderColor: vars.color.border,
+            background: 'transparent',
+            ':hover': { color: vars.color.foreground },
+        },
+    ],
+});
+
 export const detailBtn = style({
     display: 'inline-flex',
     alignItems: 'center',
@@ -534,6 +583,42 @@ export const permLabel = style({
 export const permDesc = style({
     fontSize: '0.64rem',
     lineHeight: 1.5,
+    color: vars.color.mutedForeground,
+});
+
+// 外掛自己寫的用途說明（permissionNotes）。與通用描述同一個位置、同一個
+// 行高，只多一個「用途」標記講清楚這句話是誰說的：外掛的自述不等於平台的
+// 保證，兩者混在一起看會讓使用者把外掛的話當成 App 的背書。
+export const permNote = style({
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '5px',
+    fontSize: '0.64rem',
+    lineHeight: 1.5,
+    color: vars.color.foreground,
+});
+
+export const permNoteTag = style({
+    flexShrink: 0,
+    fontFamily: vars.font.display,
+    fontSize: '0.56rem',
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    padding: '0 4px',
+    borderRadius: '999px',
+    border: `1px solid ${vars.color.border}`,
+    background: vars.color.inset,
+    color: vars.color.mutedForeground,
+});
+
+// host 對所有外掛一律成立的邊界（PLUGIN_HOST_GUARANTEE）。放在權限區底部，
+// 與外掛自述分開：不可信的一方不能保證自己不會做壞事。
+export const hostGuarantee = style({
+    marginTop: '2px',
+    paddingTop: vars.space.sm,
+    borderTop: `1px dashed ${vars.color.border}`,
+    fontSize: '0.62rem',
+    lineHeight: 1.55,
     color: vars.color.mutedForeground,
 });
 

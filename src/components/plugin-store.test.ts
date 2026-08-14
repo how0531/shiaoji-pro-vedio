@@ -7,17 +7,21 @@ import {
     countByCategory,
     filterPlugins,
     lookupIcon,
+    permissionNoteText,
+    planPlacement,
     type PluginListItem,
     PLUGIN_ICONS,
+    resolvePermissionNotes,
     resolvePermissions,
     riskCounts,
     sortPermissions,
 } from './plugin-store';
 import type { InstalledPlugin } from '../lib/plugins/store';
-import type {
-    PluginManifest,
-    PluginPermissionId,
-    StoreCatalog,
+import {
+    PLUGIN_PERMISSION_NOTE_MAX,
+    type PluginManifest,
+    type PluginPermissionId,
+    type StoreCatalog,
 } from '../lib/plugins/types';
 
 type CatalogEntry = StoreCatalog['plugins'][number];
@@ -307,6 +311,129 @@ describe('countByCategory', () => {
             derivatives: 0,
             tools: 0,
         });
+    });
+});
+
+describe('resolvePermissionNotes', () => {
+    it('未安裝時讀 catalog entry（安裝前就看得到為什麼要這些權限）', () => {
+        const entry = entryOf({
+            permissions: ['portfolio-read'],
+            permissionNotes: { 'portfolio-read': '只用來算整戶維持率' },
+        });
+        expect(resolvePermissionNotes(entry, undefined)).toEqual({
+            'portfolio-read': '只用來算整戶維持率',
+        });
+    });
+
+    it('已安裝時以本機 manifest 為準（正在跑的是它）', () => {
+        const entry = entryOf({
+            permissionNotes: { 'portfolio-read': '商店新版的說法' },
+        });
+        const installed = installedOf({
+            manifest: manifest({
+                permissionNotes: { 'portfolio-read': '本機這一版的說法' },
+            }),
+        });
+        expect(resolvePermissionNotes(entry, installed)).toEqual({
+            'portfolio-read': '本機這一版的說法',
+        });
+    });
+
+    it('舊 manifest 沒這一欄時回 undefined', () => {
+        expect(resolvePermissionNotes(entryOf(), undefined)).toBeUndefined();
+        expect(
+            resolvePermissionNotes(undefined, installedOf()),
+        ).toBeUndefined();
+    });
+});
+
+describe('permissionNoteText', () => {
+    it('有寫就回傳那一句', () => {
+        expect(
+            permissionNoteText(
+                { 'portfolio-read': '只用來讀融資融券庫存算維持率' },
+                'portfolio-read',
+            ),
+        ).toBe('只用來讀融資融券庫存算維持率');
+    });
+
+    it('沒有 notes、沒寫這一項、空字串、空白字串都回 null（呼叫端退回通用描述）', () => {
+        expect(permissionNoteText(undefined, 'portfolio-read')).toBeNull();
+        expect(permissionNoteText({}, 'portfolio-read')).toBeNull();
+        expect(
+            permissionNoteText({ 'portfolio-read': '' }, 'portfolio-read'),
+        ).toBeNull();
+        expect(
+            permissionNoteText({ 'portfolio-read': '   ' }, 'portfolio-read'),
+        ).toBeNull();
+    });
+
+    it('目錄資料型別不對時不 throw 也不顯示（catalog 未逐筆驗證）', () => {
+        const notes = { 'portfolio-read': 42 } as unknown as Partial<
+            Record<PluginPermissionId, string>
+        >;
+        expect(permissionNoteText(notes, 'portfolio-read')).toBeNull();
+    });
+
+    it('Object.prototype 上的成員不會被誤當成 note', () => {
+        expect(permissionNoteText({}, 'toString' as PluginPermissionId))
+            .toBeNull();
+        expect(
+            permissionNoteText({}, 'constructor' as PluginPermissionId),
+        ).toBeNull();
+    });
+
+    it('清掉換行與 U+202E 這類控制/格式字元（擋破版與視覺偽造）', () => {
+        expect(
+            permissionNoteText(
+                { 'portfolio-read': '第一行\n第二行' },
+                'portfolio-read',
+            ),
+        ).toBe('第一行第二行');
+        expect(
+            permissionNoteText(
+                { 'portfolio-read': '‮讀庫存' },
+                'portfolio-read',
+            ),
+        ).toBe('讀庫存');
+    });
+
+    it('超過上限的未驗證目錄資料以 code point 為單位截斷', () => {
+        const long = '權'.repeat(PLUGIN_PERMISSION_NOTE_MAX + 20);
+        const out = permissionNoteText(
+            { 'portfolio-read': long },
+            'portfolio-read',
+        );
+        expect(out).not.toBeNull();
+        expect(Array.from(out!).length).toBe(PLUGIN_PERMISSION_NOTE_MAX);
+    });
+
+    it('emoji 等星芒平面字元算一個 code point，不會被切成半個', () => {
+        const long = '📈'.repeat(PLUGIN_PERMISSION_NOTE_MAX + 5);
+        const out = permissionNoteText(
+            { 'portfolio-read': long },
+            'portfolio-read',
+        );
+        expect(Array.from(out!).length).toBe(PLUGIN_PERMISSION_NOTE_MAX);
+    });
+});
+
+describe('planPlacement', () => {
+    it('剛好一個面板時自動置入那一個', () => {
+        expect(planPlacement([{ key: 'main' }])).toEqual({
+            kind: 'place',
+            panelKey: 'main',
+        });
+    });
+
+    it('多個面板時不猜，讓使用者在卡片上選', () => {
+        expect(planPlacement([{ key: 'a' }, { key: 'b' }])).toEqual({
+            kind: 'choose',
+        });
+    });
+
+    it('零面板（只提供背景能力）時完全不動版面', () => {
+        expect(planPlacement([])).toEqual({ kind: 'none' });
     });
 });
 

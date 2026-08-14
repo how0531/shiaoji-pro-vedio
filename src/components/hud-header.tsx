@@ -21,6 +21,7 @@ import { fmtMoney } from '../lib/utils/format';
 import type { Profile, Workspace } from '../lib/workspace';
 import { LayoutLibrary } from './layout-library';
 import { MarketBar } from './market-bar';
+import { PluginWidgetBar } from './plugin-widget-bar';
 import { ServerManager } from './server-manager';
 import { SettingsDialog } from './settings-dialog';
 import * as styles from './hud-header.css';
@@ -185,11 +186,14 @@ export function HudHeader({
     onResetWorkspace,
     onLoadPreset,
     flashCodes = [],
+    selectedCode = null,
 }: {
     accBalance?: number;
     onOpenPanelLibrary: () => void;
     onOpenPluginStore: () => void;
     flashCodes?: string[];
+    // 傳給外掛小工具的目前商品（與面板同語意：null 代表全域沒選商品）
+    selectedCode?: string | null;
     profiles: Profile[];
     currentWorkspace: Workspace;
     onSaveProfile: (name: string, icon?: string) => void;
@@ -279,6 +283,11 @@ export function HudHeader({
                 ))}
 
             <MarketBar />
+
+            {/* 外掛小工具接在左組（加權/基差之後、spacer 之前）：左組本來
+                就是變動寬度，多一個變動來源不破壞任何預期；插在 spacer 之後
+                會把整個右組往左推，那是版面改動。 */}
+            <PluginWidgetBar code={selectedCode} />
 
             <div className={styles.spacer} />
 

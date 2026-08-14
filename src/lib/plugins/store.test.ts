@@ -2,19 +2,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     getLoaded,
     getPanelDef,
+    getWidgetNote,
     hasUpdate,
     initPlugins,
     installPlugin,
+    listLoadedWidgets,
     loadInstalled,
     saveInstalled,
     setPluginEnabled,
     sideloadPlugin,
+    uninstallPlugin,
     updatableIds,
     type InstalledPlugin,
     type PluginsState,
 } from './store';
 import { fetchBundle, loadBundle } from './loader';
-import type { StoreCatalog } from './types';
+import {
+    PLUGIN_WIDGETS_PER_PLUGIN_MAX,
+    type StoreCatalog,
+} from './types';
 
 vi.mock('./loader', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./loader')>();
@@ -339,5 +345,106 @@ describe('sideloadPlugin：相容性檢查與防冒名', () => {
         ).rejects.toThrow('外掛 id 與官方商店重複，禁止 side-load 冒名');
 
         vi.unstubAllGlobals();
+    });
+});
+
+// ---- 狀態列小工具的註冊表（widgetsByPlugin）----
+
+function fakeWidget(key: string) {
+    return { key, label: key, Component: () => null };
+}
+
+// activate() 回傳指定數量的 widget（面板固定一個，比照預設 mock）
+function bundleWithWidgets(count: number) {
+    return {
+        activate: () => ({
+            panels: [
+                {
+                    key: 'test-panel',
+                    label: '測試面板',
+                    pinnable: false,
+                    singleton: true,
+                    defaultSize: { w: 1, h: 1, minW: 1, minH: 1 },
+                    Component: () => null,
+                },
+            ],
+            widgets: Array.from({ length: count }, (_, i) =>
+                fakeWidget(`w${i}`),
+            ),
+        }),
+    };
+}
+
+async function installWithWidgets(count: number) {
+    vi.mocked(loadBundle).mockResolvedValueOnce(
+        bundleWithWidgets(count) as unknown as Awaited<
+            ReturnType<typeof loadBundle>
+        >,
+    );
+    vi.stubGlobal(
+        'fetch',
+        vi.fn(
+            async () =>
+                new Response(JSON.stringify(FAKE.manifest), { status: 200 }),
+        ),
+    );
+    await installPlugin(CATALOG_ENTRY);
+    vi.unstubAllGlobals();
+}
+
+describe('狀態列小工具註冊', () => {
+    it('舊 bundle 只回 { panels } 時完全不受影響（widgets 視為空）', async () => {
+        await seedCatalog(CATALOG_NORMAL);
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                async () =>
+                    new Response(JSON.stringify(FAKE.manifest), {
+                        status: 200,
+                    }),
+            ),
+        );
+        await installPlugin(CATALOG_ENTRY);
+        vi.unstubAllGlobals();
+
+        expect(listLoadedWidgets()).toEqual([]);
+        expect(getPanelDef('statement', 'test-panel')).not.toBeNull();
+    });
+
+    it('超過每顆外掛的上限時只截斷並記一句原因，面板照常運作', async () => {
+        await seedCatalog(CATALOG_NORMAL);
+        await installWithWidgets(PLUGIN_WIDGETS_PER_PLUGIN_MAX + 2);
+
+        expect(listLoadedWidgets().length).toBe(PLUGIN_WIDGETS_PER_PLUGIN_MAX);
+        expect(getWidgetNote('statement')).toBeTruthy();
+        // 截斷不該讓整顆外掛看起來壞掉
+        expect(getLoaded('statement')).toBe('ok');
+        expect(getPanelDef('statement', 'test-panel')).not.toBeNull();
+    });
+
+    it('沒超過上限時不留下截斷說明', async () => {
+        await seedCatalog(CATALOG_NORMAL);
+        await installWithWidgets(1);
+
+        expect(listLoadedWidgets().length).toBe(1);
+        expect(getWidgetNote('statement')).toBeUndefined();
+    });
+
+    it('停用外掛時小工具跟著下架（與面板同進同退）', async () => {
+        await seedCatalog(CATALOG_NORMAL);
+        await installWithWidgets(1);
+        expect(listLoadedWidgets().length).toBe(1);
+
+        await setPluginEnabled('statement', false);
+        expect(listLoadedWidgets()).toEqual([]);
+    });
+
+    it('移除外掛時小工具跟著清掉', async () => {
+        await seedCatalog(CATALOG_NORMAL);
+        await installWithWidgets(1);
+        expect(listLoadedWidgets().length).toBe(1);
+
+        uninstallPlugin('statement');
+        expect(listLoadedWidgets()).toEqual([]);
     });
 });

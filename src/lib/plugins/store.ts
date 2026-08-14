@@ -12,10 +12,14 @@ import {
 } from './loader';
 import { createHost, APP_VERSION } from './host';
 import { rawFetch } from '../api';
+import { seedWidgetPrefs } from './widget-prefs';
 import {
     OFFICIAL_STORE_URL,
+    PLUGIN_WIDGETS_PER_PLUGIN_MAX,
     type PluginManifest,
     type PluginPanelDef,
+    type PluginPanels,
+    type PluginWidgetDef,
     type StoreCatalog,
 } from './types';
 
@@ -101,6 +105,12 @@ const listeners = new Set<() => void>();
 // 一起變動（activatePlugin/uninstall/停用時同步更新），元件靠 usePluginsState()
 // 的狀態變化觸發重新讀取 listLoadedPanels()。
 const panelsByPlugin = new Map<string, PluginPanelDef[]>();
+// pluginId → 該外掛 activate() 回傳的狀態列小工具（已套用每顆外掛的上限）。
+// 與 panelsByPlugin 同進同退，生命週期完全一致。
+const widgetsByPlugin = new Map<string, PluginWidgetDef[]>();
+// pluginId → 註冊時被截斷的說明。刻意不寫進 state.loaded：那一欄只要不是
+// 'ok' 商店就判成「載入失敗」，多註冊了幾個小工具不該讓整顆外掛看起來壞掉。
+const widgetNotes = new Map<string, string>();
 
 // initPlugins 之前呼叫 install/sideload 屬非預期時序，用 no-op bridge 兜底
 // 避免拋錯，onSelectCode 靜默失效
@@ -138,6 +148,38 @@ async function fetchCatalog(): Promise<StoreCatalog | null> {
 
 // ---- 載入 / 啟用單一外掛（initPlugins 逐一載入、setPluginEnabled(on) 重走用）----
 
+// activate() 的回傳值是 contribution bag：面板必收，widgets 選填（舊 bundle
+// 只回 { panels }）。每顆外掛的 widget 超過上限時只截斷、記一句原因，不讓
+// 整個 activate 失敗，面板照常運作。
+function registerContributions(id: string, result: PluginPanels): void {
+    panelsByPlugin.set(id, result.panels);
+    const declared = Array.isArray(result.widgets) ? result.widgets : [];
+    const kept = declared.slice(0, PLUGIN_WIDGETS_PER_PLUGIN_MAX);
+    if (kept.length > 0) widgetsByPlugin.set(id, kept);
+    else widgetsByPlugin.delete(id);
+    if (declared.length > kept.length) {
+        widgetNotes.set(
+            id,
+            `狀態列小工具最多 ${PLUGIN_WIDGETS_PER_PLUGIN_MAX} 個，已略過多出的 ${declared.length - kept.length} 個`,
+        );
+    } else {
+        widgetNotes.delete(id);
+    }
+}
+
+function dropContributions(id: string): void {
+    panelsByPlugin.delete(id);
+    widgetsByPlugin.delete(id);
+    widgetNotes.delete(id);
+}
+
+// 新註冊的 widget 第一次出現時把 defaultOn 讀進使用者偏好（只讀這一次）。
+// 一定要在 setState 之後呼叫：listLoadedWidgets() 依 state.installed 的順序
+// 排列，安裝清單還沒更新的話新外掛不會出現在種子名單裡。
+function syncWidgetPrefs(): void {
+    seedWidgetPrefs(listLoadedWidgets());
+}
+
 async function activatePlugin(p: InstalledPlugin): Promise<void> {
     try {
         const code = await fetchBundle(
@@ -146,11 +188,11 @@ async function activatePlugin(p: InstalledPlugin): Promise<void> {
         );
         const mod = await loadBundle(code);
         const host = createHost(p.id, currentBridge);
-        const { panels } = mod.activate(host);
-        panelsByPlugin.set(p.id, panels);
+        registerContributions(p.id, mod.activate(host));
         setState({ loaded: { ...state.loaded, [p.id]: 'ok' } });
+        syncWidgetPrefs();
     } catch (e) {
-        panelsByPlugin.delete(p.id);
+        dropContributions(p.id);
         const msg = e instanceof Error ? e.message : String(e);
         setState({ loaded: { ...state.loaded, [p.id]: msg } });
     }
@@ -167,11 +209,18 @@ function isDisabledInCatalog(id: string): boolean {
     return state.catalog?.plugins.find((e) => e.id === id)?.disabled === true;
 }
 
-// saveInstalled 失敗（配額/被封鎖）時，把 panelsByPlugin 剛做的變更復原成
-// 呼叫前的樣子，避免「安裝清單沒寫入、但面板已經活著」的兩邊脫節
-function restorePanels(id: string, prev: PluginPanelDef[] | undefined) {
-    if (prev) panelsByPlugin.set(id, prev);
+// saveInstalled 失敗（配額/被封鎖）時，把註冊表剛做的變更復原成呼叫前的
+// 樣子，避免「安裝清單沒寫入、但面板已經活著」的兩邊脫節
+function restoreContributions(
+    id: string,
+    prevPanels: PluginPanelDef[] | undefined,
+    prevWidgets: PluginWidgetDef[] | undefined,
+) {
+    if (prevPanels) panelsByPlugin.set(id, prevPanels);
     else panelsByPlugin.delete(id);
+    if (prevWidgets) widgetsByPlugin.set(id, prevWidgets);
+    else widgetsByPlugin.delete(id);
+    widgetNotes.delete(id);
 }
 
 // ---- 開機：載入所有已安裝且啟用的外掛 ----
@@ -233,10 +282,11 @@ export async function installPlugin(
     const code = await fetchBundle(baseUrl + manifest.entry, manifest.sha256);
     const mod = await loadBundle(code);
     const host = createHost(manifest.id, currentBridge);
-    const { panels } = mod.activate(host);
+    const contributions = mod.activate(host);
 
     const prevPanels = panelsByPlugin.get(manifest.id);
-    panelsByPlugin.set(manifest.id, panels);
+    const prevWidgets = widgetsByPlugin.get(manifest.id);
+    registerContributions(manifest.id, contributions);
 
     const record: InstalledPlugin = {
         id: manifest.id,
@@ -253,13 +303,14 @@ export async function installPlugin(
     try {
         saveInstalled(nextInstalled);
     } catch (e) {
-        restorePanels(manifest.id, prevPanels);
+        restoreContributions(manifest.id, prevPanels, prevWidgets);
         throw e;
     }
     setState({
         installed: nextInstalled,
         loaded: { ...state.loaded, [manifest.id]: 'ok' },
     });
+    syncWidgetPrefs();
 }
 
 // ---- 更新既有外掛（重抓同一 baseUrl 的 manifest.json）----
@@ -280,10 +331,12 @@ export async function updatePlugin(id: string): Promise<void> {
     );
     const mod = await loadBundle(code);
     const host = createHost(id, currentBridge);
-    const { panels } = mod.activate(host); // panels 換新，remount 由 React 樹處理
+    // 面板與小工具都換新，remount 由 React 樹處理
+    const contributions = mod.activate(host);
 
     const prevPanels = panelsByPlugin.get(id);
-    panelsByPlugin.set(id, panels);
+    const prevWidgets = widgetsByPlugin.get(id);
+    registerContributions(id, contributions);
 
     const nextInstalled = state.installed.map((p) =>
         p.id === id ? { ...p, version: manifest.version, manifest } : p,
@@ -291,13 +344,14 @@ export async function updatePlugin(id: string): Promise<void> {
     try {
         saveInstalled(nextInstalled);
     } catch (e) {
-        restorePanels(id, prevPanels);
+        restoreContributions(id, prevPanels, prevWidgets);
         throw e;
     }
     setState({
         installed: nextInstalled,
         loaded: { ...state.loaded, [id]: 'ok' },
     });
+    syncWidgetPrefs();
 }
 
 // ---- 停用 / 重新啟用 ----
@@ -322,7 +376,7 @@ export async function setPluginEnabled(
     setState({ installed: nextInstalled });
 
     if (!on) {
-        panelsByPlugin.delete(id);
+        dropContributions(id);
         // loaded[id] 同步標成「已停用」，PluginBlock 佔位卡與商店列表才會
         // 顯示正確文案，而不是沿用停用前的舊字串（'ok' 或先前的錯誤原因）
         setState({ loaded: { ...state.loaded, [id]: '已停用' } });
@@ -336,7 +390,7 @@ export async function setPluginEnabled(
 // ---- 移除 ----
 
 export function uninstallPlugin(id: string): void {
-    panelsByPlugin.delete(id);
+    dropContributions(id);
     const nextInstalled = state.installed.filter((p) => p.id !== id);
     saveInstalled(nextInstalled);
     const nextLoaded = { ...state.loaded };
@@ -375,10 +429,11 @@ export async function sideloadPlugin(baseUrlInput: string): Promise<void> {
 
     const mod = await loadBundle(code);
     const host = createHost(manifest.id, currentBridge);
-    const { panels } = mod.activate(host);
+    const contributions = mod.activate(host);
 
     const prevPanels = panelsByPlugin.get(manifest.id);
-    panelsByPlugin.set(manifest.id, panels);
+    const prevWidgets = widgetsByPlugin.get(manifest.id);
+    registerContributions(manifest.id, contributions);
 
     const record: InstalledPlugin = {
         id: manifest.id,
@@ -395,13 +450,14 @@ export async function sideloadPlugin(baseUrlInput: string): Promise<void> {
     try {
         saveInstalled(nextInstalled);
     } catch (e) {
-        restorePanels(manifest.id, prevPanels);
+        restoreContributions(manifest.id, prevPanels, prevWidgets);
         throw e;
     }
     setState({
         installed: nextInstalled,
         loaded: { ...state.loaded, [manifest.id]: 'ok' },
     });
+    syncWidgetPrefs();
 }
 
 // ---- 面板查詢 ----
@@ -422,6 +478,29 @@ export function listLoadedPanels(): {
         for (const panel of panels) out.push({ pluginId, panel });
     }
     return out;
+}
+
+// ---- 狀態列小工具查詢 ----
+
+// 依 state.installed 的順序（安裝順序）再依 def 順序展開，順序穩定：
+// 直接迭代 widgetsByPlugin 會受 Map 的插入順序影響（停用再啟用會把外掛移到
+// 最後），頂欄 chip 就會莫名換位。
+export function listLoadedWidgets(): {
+    pluginId: string;
+    widget: PluginWidgetDef;
+}[] {
+    const out: { pluginId: string; widget: PluginWidgetDef }[] = [];
+    for (const p of state.installed) {
+        const defs = widgetsByPlugin.get(p.id);
+        if (!defs) continue;
+        for (const widget of defs) out.push({ pluginId: p.id, widget });
+    }
+    return out;
+}
+
+// 註冊時被截斷的說明（沒有就 undefined），顯示在設定的小工具清單。
+export function getWidgetNote(id: string): string | undefined {
+    return widgetNotes.get(id);
 }
 
 export function getCatalog(): StoreCatalog | null {

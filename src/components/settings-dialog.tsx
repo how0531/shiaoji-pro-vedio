@@ -24,6 +24,18 @@ import {
     useHeaderItems,
 } from '../lib/header-items';
 import {
+    getWidgetNote,
+    listLoadedWidgets,
+    usePluginsState,
+} from '../lib/plugins/store';
+import { PLUGIN_HEADER_WIDGETS_MAX } from '../lib/plugins/types';
+import {
+    countWidgetsOn,
+    isWidgetOn,
+    setWidgetOn,
+    useWidgetPrefs,
+} from '../lib/plugins/widget-prefs';
+import {
     maskAccountId,
     maskMoney,
     maskName,
@@ -75,6 +87,69 @@ const TABS: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { key: 'risk', label: '風控', icon: <ShieldAlert size={13} /> },
     { key: 'layout', label: '版面', icon: <LayoutGrid size={13} /> },
 ];
+
+// 外掛註冊的頂欄小工具開關。沒有任何外掛提供小工具時整段不渲染，
+// 設定頁對絕大多數使用者維持原樣。
+//
+// 【上限擋在這裡而不是渲染層】已經開滿時，還沒開的那幾個開關直接 disabled
+// 並說明原因。開關打開卻沒東西出現（幽靈設定）比擋下來更糟；做溢位選單則
+// 要在頂欄多一顆按鈕，那是版面改動。
+function PluginWidgetSettings() {
+    // 安裝／停用／移除外掛都會換掉註冊表，靠這個訂閱重新讀取
+    usePluginsState();
+    const prefs = useWidgetPrefs();
+    const entries = listLoadedWidgets();
+    if (entries.length === 0) return null;
+    const onCount = countWidgetsOn(prefs, entries);
+    const notes = [...new Set(entries.map((e) => e.pluginId))]
+        .map((id) => ({ id, note: getWidgetNote(id) }))
+        .filter((n): n is { id: string; note: string } => !!n.note);
+    return (
+        <>
+            <span className={hud.settingLabel}>
+                外掛小工具 Plugin Widgets
+            </span>
+            {entries.map(({ pluginId, widget }) => {
+                const on = isWidgetOn(prefs, pluginId, widget.key);
+                const full = !on && onCount >= PLUGIN_HEADER_WIDGETS_MAX;
+                return (
+                    <div
+                        key={`${pluginId}::${widget.key}`}
+                        className={hud.switchRow}
+                    >
+                        <span className={hud.switchLabel}>{widget.label}</span>
+                        <button
+                            className={hud.switchTrack[on ? 'on' : 'off']}
+                            role='switch'
+                            aria-checked={on}
+                            aria-label={`頂欄顯示「${widget.label}」`}
+                            disabled={full}
+                            title={
+                                full
+                                    ? `頂欄最多同時顯示 ${PLUGIN_HEADER_WIDGETS_MAX} 個，請先關掉一個`
+                                    : on
+                                      ? `隱藏頂欄「${widget.label}」`
+                                      : `顯示頂欄「${widget.label}」`
+                            }
+                            onClick={() =>
+                                setWidgetOn(pluginId, widget.key, !on)
+                            }
+                        />
+                    </div>
+                );
+            })}
+            {notes.map((n) => (
+                <span key={n.id} className={hud.emptyHint}>
+                    {n.id}：{n.note}
+                </span>
+            ))}
+            <span className={hud.emptyHint}>
+                外掛小工具接在加權/基差之後，頂欄最多同時顯示{' '}
+                {PLUGIN_HEADER_WIDGETS_MAX} 個。
+            </span>
+        </>
+    );
+}
 
 function AppearanceSection() {
     const settings = useThemeSettings();
@@ -176,6 +251,7 @@ function AppearanceSection() {
                 logo、環境徽章、伺服器、風控、新增面板與設定為固定項目，
                 無法隱藏。
             </span>
+            <PluginWidgetSettings />
         </>
     );
 }
