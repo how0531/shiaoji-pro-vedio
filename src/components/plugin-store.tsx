@@ -44,6 +44,7 @@ import {
     setPluginEnabled,
     sideloadPlugin,
     uninstallPlugin,
+    updatableIds,
     updatePlugin,
     usePluginsState,
     type InstalledPlugin,
@@ -381,6 +382,7 @@ function PluginCard({
     const description =
         entry?.description ?? installed?.manifest.description ?? '';
     const icon = installed?.manifest.icon ?? entry?.icon;
+    const publisher = installed?.manifest.publisher ?? entry?.publisher;
     const sideloaded = installed?.sideloaded ?? false;
     const permissions = resolvePermissions(entry, installed);
     const added = showUpdate ? addedPermissions(entry, installed) : [];
@@ -432,6 +434,14 @@ function PluginCard({
                                 </>
                             ))}
                     </span>
+                    {/* 目前 catalog 全部是官方發佈，不加「官方已驗證」這種
+                        人人都有的標記（等於沒有資訊）；只單純顯示發佈者
+                        名稱，等真的出現第三方上架再考慮驗證徽章。 */}
+                    {publisher && (
+                        <span className={styles.cardPublisher}>
+                            （{publisher}）
+                        </span>
+                    )}
                 </span>
                 <span className={styles.cardDesc}>{description}</span>
                 {kind === 'failed' && reason && (
@@ -662,6 +672,11 @@ export function PluginStoreDialog({
     const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
     // 一次只展開一張卡片：詳情很長（逐條權限），同時開多張會失焦
     const [detailId, setDetailId] = useState<string | null>(null);
+    const [bulkBusy, setBulkBusy] = useState(false);
+    const [bulkProgress, setBulkProgress] = useState<{
+        done: number;
+        total: number;
+    } | null>(null);
 
     // 分區照使用者的心智：「我裝了什麼」對「我還能裝什麼」。catalog 拿不到
     // （離線）時所有已安裝外掛仍列在「已安裝」，可安裝為 0，管理流程不因
@@ -670,6 +685,7 @@ export function PluginStoreDialog({
     const catalogEntries = catalog?.plugins ?? [];
     const entryById = new Map(catalogEntries.map((e) => [e.id, e]));
     const available = catalogEntries.filter((e) => !installedIds.has(e.id));
+    const updatable = updatableIds({ installed, loaded, catalog });
 
     useEffect(() => {
         if (!open) {
@@ -707,6 +723,23 @@ export function PluginStoreDialog({
                 return next;
             });
         }
+    };
+
+    // 逐一呼叫 updatePlugin，外掛互相隔離（比照 store.ts 的 initPlugins）：
+    // withBusy 已經把每顆外掛的錯誤攔在 rowErrors，不會往外拋，所以這裡
+    // 單純 await 一輪就好，一顆失敗不影響下一顆繼續跑。
+    const onUpdateAll = async () => {
+        if (bulkBusy) return;
+        const ids = updatable;
+        if (ids.length === 0) return;
+        setBulkBusy(true);
+        setBulkProgress({ done: 0, total: ids.length });
+        for (let i = 0; i < ids.length; i++) {
+            await withBusy(ids[i]!, () => updatePlugin(ids[i]!));
+            setBulkProgress({ done: i + 1, total: ids.length });
+        }
+        setBulkBusy(false);
+        setBulkProgress(null);
     };
 
     const onUninstall = (id: string) => {
@@ -796,6 +829,19 @@ export function PluginStoreDialog({
                                     <span className={styles.sectionCount}>
                                         {installed.length}
                                     </span>
+                                    {/* 少於 3 個可更新時不出現：一個一個按
+                                        還不麻煩，不需要多一顆按鈕 */}
+                                    {updatable.length >= 3 && (
+                                        <button
+                                            className={styles.actionBtn}
+                                            disabled={bulkBusy}
+                                            onClick={() => void onUpdateAll()}
+                                        >
+                                            {bulkBusy && bulkProgress
+                                                ? `更新中 ${bulkProgress.done}/${bulkProgress.total}`
+                                                : '全部更新'}
+                                        </button>
+                                    )}
                                 </div>
                                 <div className={styles.list}>
                                     {installed.map((p) => (

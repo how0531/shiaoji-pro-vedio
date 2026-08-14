@@ -72,6 +72,22 @@ export function hasUpdate(
     return newer || catalogEntry.sha256 !== p.manifest.sha256;
 }
 
+// 商店「全部更新」用：回傳目前可更新的外掛 id。規則比照 plugin-store.tsx
+// 的 badgeOf('update')：已停用不算（避免把停用外掛的 activate() 跑起
+// 來）、官方下架不算、目錄裡沒有對應項目（side-load／目錄暫時抓不到）也
+// 不算，因為沒有比對來源。純函數，方便單獨測試。
+export function updatableIds(state: PluginsState): string[] {
+    const catalogEntries = state.catalog?.plugins ?? [];
+    const out: string[] = [];
+    for (const p of state.installed) {
+        if (!p.enabled) continue;
+        const entry = catalogEntries.find((e) => e.id === p.id);
+        if (!entry || entry.disabled) continue;
+        if (hasUpdate(p, entry)) out.push(p.id);
+    }
+    return out;
+}
+
 // ---- runtime state（模組級，非持久化）----
 
 let state: PluginsState = {

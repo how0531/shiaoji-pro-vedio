@@ -128,6 +128,8 @@ export interface PluginManifest {
     // 元件；長度 2 以內當文字角標；其餘或缺值取外掛名稱首字做 monogram。
     // 不接受 URL 與 data URI（CSP 限制、離線會破圖、第三方 SVG 有 XSS 風險）。
     icon?: string;
+    // 選填，商店卡片顯示用（誰發佈這顆外掛）。缺值不影響既有 manifest。
+    publisher?: string;
 }
 
 // store.json 的形狀（CI 產生）

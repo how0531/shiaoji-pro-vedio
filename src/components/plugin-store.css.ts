@@ -208,6 +208,14 @@ export const cardVersionNext = style({
     color: vars.color.accent,
 });
 
+// 發佈者名稱，貼著版本號顯示，樣式沿用次要文字色（不是新區塊）
+export const cardPublisher = style({
+    fontSize: '0.62rem',
+    fontWeight: 400,
+    color: vars.color.mutedForeground,
+    whiteSpace: 'nowrap',
+});
+
 // 兩行截斷（原本是 nowrap 單行，完整說明只能靠 title），展開詳情看全文
 export const cardDesc = style({
     display: '-webkit-box',

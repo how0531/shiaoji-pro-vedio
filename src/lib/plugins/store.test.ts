@@ -9,7 +9,9 @@ import {
     saveInstalled,
     setPluginEnabled,
     sideloadPlugin,
+    updatableIds,
     type InstalledPlugin,
+    type PluginsState,
 } from './store';
 import { fetchBundle, loadBundle } from './loader';
 import type { StoreCatalog } from './types';
@@ -99,6 +101,79 @@ describe('hasUpdate', () => {
                 sha256: 'c'.repeat(64),
             }),
         ).toBe(true);
+    });
+});
+
+describe('updatableIds', () => {
+    const NEWER_ENTRY: StoreCatalog['plugins'][number] = {
+        ...FAKE.manifest,
+        version: '1.1.0',
+        url: 'https://example.com/statement',
+    };
+
+    function stateWith(
+        installed: InstalledPlugin[],
+        catalog: StoreCatalog | null,
+    ): PluginsState {
+        return { installed, loaded: {}, catalog };
+    }
+
+    it('有更新且啟用中 → 列入', () => {
+        const state = stateWith([FAKE], { apiVersion: 1, plugins: [NEWER_ENTRY] });
+        expect(updatableIds(state)).toEqual(['statement']);
+    });
+
+    it('已停用不算', () => {
+        const state = stateWith(
+            [{ ...FAKE, enabled: false }],
+            { apiVersion: 1, plugins: [NEWER_ENTRY] },
+        );
+        expect(updatableIds(state)).toEqual([]);
+    });
+
+    it('官方下架不算', () => {
+        const state = stateWith(
+            [FAKE],
+            { apiVersion: 1, plugins: [{ ...NEWER_ENTRY, disabled: true }] },
+        );
+        expect(updatableIds(state)).toEqual([]);
+    });
+
+    it('sha256 不同也算（版號相同）', () => {
+        const state = stateWith(
+            [FAKE],
+            {
+                apiVersion: 1,
+                plugins: [
+                    {
+                        ...FAKE.manifest,
+                        sha256: 'b'.repeat(64),
+                        url: 'https://example.com/statement',
+                    },
+                ],
+            },
+        );
+        expect(updatableIds(state)).toEqual(['statement']);
+    });
+
+    it('目錄裡沒有對應項目不算（無比對來源）', () => {
+        const state = stateWith([FAKE], { apiVersion: 1, plugins: [] });
+        expect(updatableIds(state)).toEqual([]);
+    });
+
+    it('catalog 為 null（離線）不算', () => {
+        expect(updatableIds(stateWith([FAKE], null))).toEqual([]);
+    });
+
+    it('版號與 sha256 都相同 → 不算', () => {
+        const state = stateWith(
+            [FAKE],
+            {
+                apiVersion: 1,
+                plugins: [{ ...FAKE.manifest, url: 'https://example.com/statement' }],
+            },
+        );
+        expect(updatableIds(state)).toEqual([]);
     });
 });
 

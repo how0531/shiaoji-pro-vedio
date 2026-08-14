@@ -141,6 +141,50 @@ describe('parseManifest：icon', () => {
     });
 });
 
+describe('parseManifest：publisher', () => {
+    it('接受合法發佈者名稱', () => {
+        expect(
+            parseManifest({ ...VALID, publisher: '永豐金證券' }).publisher,
+        ).toBe('永豐金證券');
+    });
+    it('接受剛好 40 字元', () => {
+        const name = '永'.repeat(40);
+        expect(parseManifest({ ...VALID, publisher: name }).publisher).toBe(
+            name,
+        );
+    });
+    it('拒絕超過 40 字元', () => {
+        expect(() =>
+            parseManifest({ ...VALID, publisher: '永'.repeat(41) }),
+        ).toThrow(/publisher/);
+    });
+    it('拒絕空字串', () => {
+        expect(() => parseManifest({ ...VALID, publisher: '' })).toThrow(
+            /publisher/,
+        );
+    });
+    it('拒絕非字串', () => {
+        expect(() => parseManifest({ ...VALID, publisher: 42 })).toThrow(
+            /publisher/,
+        );
+    });
+    it('拒絕控制字元', () => {
+        expect(() =>
+            parseManifest({ ...VALID, publisher: 'abc\tdef' }),
+        ).toThrow(/publisher/);
+    });
+    it('拒絕標記符號', () => {
+        for (const bad of ['<script>', 'A&B', `it's`, '"x"', '`x`']) {
+            expect(() =>
+                parseManifest({ ...VALID, publisher: bad }),
+            ).toThrow(/publisher/);
+        }
+    });
+    it('缺 publisher 仍通過且不補欄位（向後相容）', () => {
+        expect('publisher' in parseManifest(VALID)).toBe(false);
+    });
+});
+
 describe('cmpVersion', () => {
     it('比較各段數字而非字串', () => {
         expect(cmpVersion('1.10.0', '1.9.0')).toBe(1);

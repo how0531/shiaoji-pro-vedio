@@ -14,6 +14,8 @@ const VER_RE = /^\d+\.\d+\.\d+$/;
 const ICON_NAME_RE = /^[A-Za-z][A-Za-z0-9]{0,31}$/;
 // 角標排除控制字元、格式字元與標記符號，manifest 是外部來源，寧可窄一點
 const ICON_BADGE_DENY_RE = /[\p{Cc}\p{Cf}<>&"'`\\/]/u;
+// publisher 比照 icon 角標的嚴謹度：排除控制字元、格式字元與標記符號
+const PUBLISHER_DENY_RE = /[\p{Cc}\p{Cf}<>&"'`]/u;
 
 const KNOWN_PERMISSIONS: ReadonlySet<string> = new Set(PLUGIN_PERMISSION_IDS);
 
@@ -56,6 +58,23 @@ function parseIcon(v: unknown): string | undefined {
     return v;
 }
 
+function isValidPublisher(v: string): boolean {
+    const points = Array.from(v);
+    return (
+        points.length >= 1 &&
+        points.length <= 40 &&
+        !PUBLISHER_DENY_RE.test(v)
+    );
+}
+
+function parsePublisher(v: unknown): string | undefined {
+    if (v === undefined) return undefined;
+    if (typeof v !== 'string' || !isValidPublisher(v)) {
+        fail('publisher', '必須是長度 40 以內、不含控制字元與標記符號的非空字串');
+    }
+    return v;
+}
+
 export function parseManifest(raw: unknown): PluginManifest {
     if (typeof raw !== 'object' || raw === null) {
         throw new Error('外掛 manifest 不是物件');
@@ -76,6 +95,7 @@ export function parseManifest(raw: unknown): PluginManifest {
     if (!/^[0-9a-f]{64}$/.test(sha256)) fail('sha256', '必須是 64 位 hex');
     const permissions = parsePermissions(r.permissions);
     const icon = parseIcon(r.icon);
+    const publisher = parsePublisher(r.publisher);
     const manifest: PluginManifest = {
         id,
         name: str('name'),
@@ -89,6 +109,7 @@ export function parseManifest(raw: unknown): PluginManifest {
     // 沒宣告就不要補上空欄位，讓「未宣告」與「宣告為空」在下游可分辨
     if (permissions) manifest.permissions = permissions;
     if (icon !== undefined) manifest.icon = icon;
+    if (publisher !== undefined) manifest.publisher = publisher;
     return manifest;
 }
 
