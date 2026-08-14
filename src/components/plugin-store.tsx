@@ -439,7 +439,10 @@ function PluginCard({
                         載入失敗：{reason}
                     </span>
                 )}
-                <PermissionChips permissions={permissions} />
+                {/* 卡片上不放風險摘要：帳務類外掛一律會標成高風險，每張卡
+                    都是紅字就變成警報疲勞，反而沒人讀。完整的逐條權限與風險
+                    分級留在下方「詳細資訊與權限」展開區，安裝前要看得到的
+                    知情同意在那裡，不在這一排紅字。 */}
                 {error && <span className={styles.cardError}>{error}</span>}
                 <button
                     className={styles.detailBtn}
