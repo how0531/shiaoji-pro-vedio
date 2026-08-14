@@ -53,7 +53,7 @@ import {
 } from '../lib/plugins/store';
 import {
     PLUGIN_CATEGORIES,
-    PLUGIN_HOST_GUARANTEE,
+    PLUGIN_HOST_BOUNDARY_NOTE,
     PLUGIN_PERMISSION_IDS,
     PLUGIN_PERMISSION_NOTE_MAX,
     PLUGIN_PERMISSIONS,
@@ -303,6 +303,24 @@ export interface PluginListItem {
     category: PluginCategoryId;
 }
 
+// 未知或缺值一律正規化到 tools（工具是天然收容所，與 types.ts 的
+// PluginManifest.category 說明一致）。
+// 【為什麼兩種情況要同一種待遇】manifest.category 缺值時合法（舊
+// manifest），但「有值卻不是五個已知 key 之一」不會被擋下：官方 manifest
+// 會經 parseManifest 驗證，可是商店目錄（store.json）是直接 fetch 回來的
+// 快照（fetchCatalog 沒有再跑一次 parseManifest），CI 端打錯字或未來新增
+// 分類但這版 App 還不認得的 key 都可能混進來。這種值如果只用 `?? 'tools'`
+// 接，undefined 接得住，字串接不住，會在 groupByCategory 的五個分組裡全部
+// 落空（一張卡都不畫），但 filterPlugins 的 category 'all' 分支不檢查
+// category 是否已知，「全部 N」的計數仍把它算進去，變成使用者看得到數字
+// 卻找不到卡片。這裡是唯一的正規化收斂點：分類、計數、篩選都讀正規化後
+// 的值，才不會出現這個落差。
+export function normalizeCategory(v: string | undefined): PluginCategoryId {
+    return PLUGIN_CATEGORIES.some((c) => c.key === v)
+        ? (v as PluginCategoryId)
+        : 'tools';
+}
+
 // name／description／id 三欄比對（大小寫不敏感），category 為 'all' 時
 // 不篩分類。純函數不吃 React 狀態，query 為空字串時只做分類篩選（或原樣
 // 回傳，順序不變）。
@@ -335,6 +353,26 @@ export function countByCategory(
     ) as Record<PluginCategoryId, number>;
     for (const item of items) counts[item.category] += 1;
     return counts;
+}
+
+// 每一區再依分類分組。分組而不是做篩選鈕，是因為篩選鈕在外掛少的時候有
+// 一半按了是空的；分組則是外掛越多越有用，少的時候也只是多兩行標題。
+// 空的分類不渲染，所以四個外掛只會看到「帳務分析」與「選擇權/衍生品」。
+//
+// categoryOf 回傳的值一律經 normalizeCategory 收斂：未知或缺值都歸到
+// tools，兩種情況同一種待遇，才不會出現「全部 N」算得到、分組卻找不到
+// 卡片的落差（見 normalizeCategory 的說明）。
+export function groupByCategory<T>(
+    items: T[],
+    categoryOf: (item: T) => PluginCategoryId | string | undefined,
+): { key: PluginCategoryId; label: string; items: T[] }[] {
+    return PLUGIN_CATEGORIES.map((cat) => ({
+        key: cat.key,
+        label: cat.label,
+        items: items.filter(
+            (item) => normalizeCategory(categoryOf(item)) === cat.key,
+        ),
+    })).filter((g) => g.items.length > 0);
 }
 
 // icon 解析三段（與 manifest 契約一致）：命中 allowlist 畫 lucide 元件 →
@@ -710,10 +748,11 @@ function PluginCard({
                             permissions={permissions}
                             notes={permissionNotes}
                         />
-                        {/* App 端固定文案，講 host 對所有外掛一律成立的
-                            邊界。與外掛自述分開：外掛說的話不能拿來當保證 */}
+                        {/* App 端固定文案，講 App 提供給外掛的介面本身不含
+                            什麼。與外掛自述分開：外掛說的話不能拿來當保證，
+                            這裡同時老實講明介面不是密封邊界 */}
                         <div className={styles.hostGuarantee}>
-                            {PLUGIN_HOST_GUARANTEE}
+                            {PLUGIN_HOST_BOUNDARY_NOTE}
                         </div>
                     </div>
                     {added.length > 0 && (
@@ -904,39 +943,27 @@ export function PluginStoreDialog({
         else panelsById.set(pluginId, [panel]);
     }
 
-    // 每一區再依分類分組。分組而不是做篩選鈕，是因為篩選鈕在外掛少的時候
-    // 有一半按了是空的；分組則是外掛越多越有用，少的時候也只是多兩行標題。
-    // 空的分類不渲染，所以四個外掛只會看到「帳務分析」與「選擇權/衍生品」。
-    function groupByCategory<T>(
-        items: T[],
-        categoryOf: (item: T) => PluginCategoryId | undefined,
-    ): { key: PluginCategoryId; label: string; items: T[] }[] {
-        return PLUGIN_CATEGORIES.map((cat) => ({
-            key: cat.key,
-            label: cat.label,
-            // 缺 category 的（舊 manifest）歸到工具，與 types.ts 的約定一致
-            items: items.filter(
-                (item) => (categoryOf(item) ?? 'tools') === cat.key,
-            ),
-        })).filter((g) => g.items.length > 0);
-    }
-
     // ---- 導覽層：狀態分頁／搜尋／分類篩選，只在外掛數過門檻時生效 ----
     // installed／available 投影成 PluginListItem 供 filterPlugins／
     // countByCategory 共用比對邏輯，額外掛一個回指原始物件的欄位
     // （plugin／entry），篩完之後不用另外查表就能把原始物件丟給 PluginCard。
+    //
+    // category 一律經 normalizeCategory：installed 的 manifest.category
+    // 正常會經 parseManifest 驗過，但 available 的 e.category 來自
+    // fetchCatalog 直接 fetch 回來的 store.json 快照，沒有再驗一次，CI
+    // 端打錯字會直接混進來，這裡是唯一收斂點。
     const installedItems = installed.map((p) => ({
         id: p.id,
         name: p.manifest.name,
         description: p.manifest.description,
-        category: p.manifest.category ?? ('tools' as PluginCategoryId),
+        category: normalizeCategory(p.manifest.category),
         plugin: p,
     }));
     const availableItems = available.map((e) => ({
         id: e.id,
         name: e.name,
         description: e.description,
-        category: e.category ?? ('tools' as PluginCategoryId),
+        category: normalizeCategory(e.category),
         entry: e,
     }));
 

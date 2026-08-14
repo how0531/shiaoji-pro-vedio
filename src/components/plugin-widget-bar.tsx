@@ -29,12 +29,19 @@ class WidgetBoundary extends React.Component<
     render() {
         if (this.state.error !== null) {
             // 頂欄沒有空間放錯誤訊息，也不該在這裡放重試按鈕（那要多一顆
-            // 可點的東西）。留一個破折替身＋hover 說明，使用者要處理就去
-            // 設定關掉它，或到商店重新載入外掛。
+            // 可點的東西）。留一個替身＋hover 說明。
+            //
+            // 【重置路徑在呼叫端，不在這裡】這個 class 本身不會自己清掉
+            // state.error；靠的是 WidgetChip 的 key 帶 sha256，外掛升版
+            // 換了新的 Component 時 key 跟著換，React 就會整顆重新掛載，
+            // 等於重新 mount 出一個乾淨的 boundary。key 不帶版本資訊的話，
+            // 這一格會永遠回不來，即使 Component 已經換成修好的新函式。
+            // 提示文案跟著這個事實寫：版本沒變就是同一份程式碼仍在壞，
+            // 不再叫使用者做「重新載入」這種其實沒有用的事。
             return (
                 <span
                     className={styles.slotError}
-                    title={`小工具發生錯誤：${this.state.error}`}
+                    title={`小工具發生錯誤：${this.state.error}（外掛更新後會自動恢復；若持續發生，可到設定關閉這個小工具）`}
                 >
                     —
                 </span>
@@ -81,9 +88,14 @@ export const PluginWidgetBar = React.memo(function PluginWidgetBar({
     if (shown.length === 0) return null;
     return (
         <div className={styles.bar}>
-            {shown.map(({ pluginId, widget }) => (
+            {shown.map(({ pluginId, widget, sha256 }) => (
+                // key 帶 sha256：外掛升版換掉 bundle 內容時 key 跟著變，
+                // React 會整顆重新掛載 WidgetChip（連同裡面的
+                // WidgetBoundary），舊版留下的 state.error 不會沿用到新版
+                // 身上。同一版重複渲染時 sha256 不變，key 穩定，不會無謂
+                // remount。
                 <WidgetChip
-                    key={`${pluginId}::${widget.key}`}
+                    key={`${pluginId}::${widget.key}::${sha256}`}
                     label={widget.label}
                     Component={widget.Component}
                     code={code}

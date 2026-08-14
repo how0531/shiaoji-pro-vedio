@@ -111,14 +111,22 @@ export const PLUGIN_PERMISSIONS: Record<
     },
 };
 
-// 商店權限區底部的固定一行，講 host 對所有外掛一律成立的邊界。
+// 商店權限區底部的固定一行，講 App 提供給外掛的介面本身不含什麼、擋掉
+// 什麼。
 // 【為什麼是 App 端常數而不是 manifest 欄位】外掛不可以自己保證「我不會
-// 取得姓名」「我沒有下單權限」：那是 host 的事實（PluginAccount 投影只給
-// 四欄、host.ts 的 deny-list 擋下單 path），由被稽核的一方自述等於把稽核
-// 責任丟給使用者。外掛只能說「我為什麼要碰」（permissionNotes），
-// 「它碰不到什麼」一律由這裡陳述。
-export const PLUGIN_HOST_GUARANTEE =
-    '所有外掛一律拿不到你的姓名與身分證字號（App 只交出券商代號與帳號末碼），也沒有任何下單、改單、刪單的管道；資料只在你這台電腦與永豐 Shioaji 之間往返。';
+// 取得姓名」「我沒有下單權限」：那是 App 介面設計的事實（PluginAccount
+// 投影只給四欄、host.ts 的 deny-list 擋下單 path），由被稽核的一方自述
+// 等於把稽核責任丟給使用者。外掛只能說「我為什麼要碰」（permissionNotes），
+// 「介面本身擋掉什麼」一律由這裡陳述。
+//
+// 【不能寫成絕對保證，這正是常數改名的原因】bundle 是用 script 標籤掛進
+// 主 window，與 App 同一個 realm；惡意外掛技術上可以直接呼叫
+// window.fetch 打同一個後端，完全繞過這層介面（見 host.ts 的
+// DENIED_ACCOUNT_IDENTITY_PATHS 說明）。在交易軟體裡給出做不到的保證，
+// 比不給保證更糟，所以這裡只陳述「介面不會交出什麼」這個真的成立的
+// 事實，並且老實講明它不是密封邊界，安裝前提仍是只信任來源。
+export const PLUGIN_HOST_BOUNDARY_NOTE =
+    'App 提供給外掛的介面不會交出你的姓名或身分證字號（只給券商代號與帳號末碼），介面裡也沒有下單、改單、刪單的功能。但外掛與 App 在同一個環境執行，技術上仍可能繞過這層介面，請只安裝你信任的來源。';
 
 // permissionNotes 每一句的長度上限（code point 數）。
 // 80 的來源：現有最長的通用描述（account-switch）約 65 字，留一點緩衝，
@@ -178,8 +186,8 @@ export interface PluginManifest {
     // 不留空白。每句長度上限見 PLUGIN_PERMISSION_NOTE_MAX。
     //
     // 【刻意不收否定式保證】不要在這裡寫「不會取得姓名與身分證字號」
-    // 「不具下單權限」這類自我擔保，那是 host 的邊界事實，
-    // 由 PLUGIN_HOST_GUARANTEE 固定陳述才可信。
+    // 「不具下單權限」這類自我擔保，那是 App 介面的邊界事實，
+    // 由 PLUGIN_HOST_BOUNDARY_NOTE 固定陳述才可信。
     permissionNotes?: Partial<Record<PluginPermissionId, string>>;
 }
 

@@ -13,6 +13,7 @@ import {
     sideloadPlugin,
     uninstallPlugin,
     updatableIds,
+    updatePlugin,
     type InstalledPlugin,
     type PluginsState,
 } from './store';
@@ -446,5 +447,48 @@ describe('狀態列小工具註冊', () => {
 
         uninstallPlugin('statement');
         expect(listLoadedWidgets()).toEqual([]);
+    });
+
+    // 【鎖住 ErrorBoundary 重置的資料來源】WidgetChip 的 React key 帶
+    // sha256 才能在外掛升版時重新掛載（否則舊版留下的 state.error 永遠
+    // 回不來，見 plugin-widget-bar.tsx）。key 從哪來就要鎖在哪：這裡只驗
+    // listLoadedWidgets() 的 sha256 有沒有跟著 updatePlugin 換新，不驗
+    // React 有沒有真的重新掛載（那件事已經在真實瀏覽器裡驗證過）。
+    it('外掛升版後 listLoadedWidgets 的 sha256 跟著換新', async () => {
+        await seedCatalog(CATALOG_NORMAL);
+        await installWithWidgets(1);
+        const before = listLoadedWidgets();
+        expect(before.length).toBe(1);
+        const [beforeEntry] = before;
+        expect(beforeEntry?.sha256).toBe(FAKE.manifest.sha256);
+
+        const newSha = 'b'.repeat(64);
+        vi.mocked(loadBundle).mockResolvedValueOnce(
+            bundleWithWidgets(1) as unknown as Awaited<
+                ReturnType<typeof loadBundle>
+            >,
+        );
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(
+                async () =>
+                    new Response(
+                        JSON.stringify({
+                            ...FAKE.manifest,
+                            version: '1.1.0',
+                            sha256: newSha,
+                        }),
+                        { status: 200 },
+                    ),
+            ),
+        );
+        await updatePlugin('statement');
+        vi.unstubAllGlobals();
+
+        const after = listLoadedWidgets();
+        expect(after.length).toBe(1);
+        const [afterEntry] = after;
+        expect(afterEntry?.sha256).toBe(newSha);
+        expect(afterEntry?.sha256).not.toBe(beforeEntry?.sha256);
     });
 });

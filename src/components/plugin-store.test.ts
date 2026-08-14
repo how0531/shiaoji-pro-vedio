@@ -6,7 +6,9 @@ import {
     addedPermissions,
     countByCategory,
     filterPlugins,
+    groupByCategory,
     lookupIcon,
+    normalizeCategory,
     permissionNoteText,
     planPlacement,
     type PluginListItem,
@@ -311,6 +313,61 @@ describe('countByCategory', () => {
             derivatives: 0,
             tools: 0,
         });
+    });
+});
+
+describe('normalizeCategory', () => {
+    it('已知 key 原樣回傳', () => {
+        expect(normalizeCategory('account')).toBe('account');
+        expect(normalizeCategory('derivatives')).toBe('derivatives');
+    });
+
+    it('缺值歸到 tools', () => {
+        expect(normalizeCategory(undefined)).toBe('tools');
+    });
+
+    it('未知字串（打錯字、CI 端 typo）也歸到 tools，不是原樣回傳', () => {
+        expect(normalizeCategory('toolss')).toBe('tools');
+        expect(normalizeCategory('Account')).toBe('tools');
+        expect(normalizeCategory('')).toBe('tools');
+    });
+});
+
+// 鎖住這輪修的 bug：category 打錯字（不在 PLUGIN_CATEGORIES 裡）不該讓
+// 外掛整張卡片消失。舊版 groupByCategory 只用 `categoryOf(item) ?? 'tools'`
+// 接，undefined 接得住、未知字串接不住，五個分組都不符合，一張卡都不會
+// 畫出來；但 filterPlugins 的 'all' 分支不檢查 category 是否已知，「全部
+// N」的計數仍把它算進去，使用者看得到數字卻找不到卡片。
+describe('groupByCategory', () => {
+    it('已知分類正常分組', () => {
+        const items = [
+            listItem({ id: 'a', category: 'account' }),
+            listItem({ id: 'b', category: 'derivatives' }),
+        ];
+        const groups = groupByCategory(items, (item) => item.category);
+        expect(groups.map((g) => g.key)).toEqual(['account', 'derivatives']);
+        expect(groups.find((g) => g.key === 'account')?.items).toEqual([
+            items[0],
+        ]);
+    });
+
+    it('category 是未知字串（typo）時歸到 tools 分組，不會整張卡片消失', () => {
+        const items = [listItem({ id: 'a', category: 'toolss' as never })];
+        const groups = groupByCategory(items, (item) => item.category);
+        expect(groups).toHaveLength(1);
+        expect(groups[0]).toMatchObject({ key: 'tools', items });
+    });
+
+    it('缺值與未知字串同一種待遇，都落在 tools 分組', () => {
+        const items = [
+            listItem({ id: 'a', category: undefined as never }),
+            listItem({ id: 'b', category: '不存在的分類' as never }),
+        ];
+        const groups = groupByCategory(items, (item) => item.category);
+        expect(groups).toHaveLength(1);
+        const [group] = groups;
+        expect(group?.key).toBe('tools');
+        expect(group?.items).toEqual(items);
     });
 });
 

@@ -18,6 +18,10 @@ export type WidgetPrefs = Record<string, boolean>;
 export interface WidgetEntry {
     pluginId: string;
     widget: PluginWidgetDef;
+    // 已安裝 bundle 的 sha256。頂欄 chip 的 React key 要帶上它才能在外掛
+    // 升版時重新掛載（見 plugin-widget-bar.tsx 的 WidgetChip key），
+    // 這裡不用它做偏好比對，只是讓它跟著 entry 一起流過去。
+    sha256: string;
 }
 
 // 分隔符用 ::，pluginId 由 manifest 驗過（不含冒號），widget.key 由外掛

@@ -897,10 +897,24 @@ export default function App() {
 
     // jump-to-existing-panel from the panel library: scroll the grid cell
     // into view and pulse its outline once
+    //
+    // 【為什麼要重試，不能只包一層 rAF】呼叫端（尤其 placePluginPanel）是先
+    // addBlock 觸發 state update，緊接著同一個 tick 呼叫這裡；rAF callback
+    // 執行的當下不保證 React 已經把新格子 commit 進 DOM（這裡還疊了
+    // setPluginStoreOpen(false) 一起 flush，時序更難保證）。一次 rAF 抓不到
+    // 就靜默放棄的話，「安裝即置入」的核心價值（看得見發生什麼事）就沒兌現。
+    // 改成有上限的重試：每一幀都查一次，抓到才動作，抓不到就再等下一幀，
+    // 最多等 LOCATE_MAX_ATTEMPTS 幀（60fps 下約半秒，遠超過一般 commit 加
+    // layout 所需時間），逾時才放棄，行為與原本一樣是靜默 no-op。
+    const LOCATE_MAX_ATTEMPTS = 30;
     const locateBlock = useCallback((id: string) => {
-        requestAnimationFrame(() => {
+        const tryLocate = (attempt: number) => {
             const cell = document.querySelector(`[data-block-id="${id}"]`);
-            if (!cell) return;
+            if (!cell) {
+                if (attempt >= LOCATE_MAX_ATTEMPTS) return;
+                requestAnimationFrame(() => tryLocate(attempt + 1));
+                return;
+            }
             cell.scrollIntoView({ behavior: 'smooth', block: 'center' });
             cell.classList.remove(libraryStyles.blockFlash);
             // restart the animation even when re-triggered back to back
@@ -910,7 +924,8 @@ export default function App() {
                 () => cell.classList.remove(libraryStyles.blockFlash),
                 1300,
             );
-        });
+        };
+        requestAnimationFrame(() => tryLocate(0));
     }, []);
 
     // 安裝即置入：商店裝完（或事後從卡片按「加入版面」）把外掛面板放到版面

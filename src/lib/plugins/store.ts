@@ -485,15 +485,24 @@ export function listLoadedPanels(): {
 // 依 state.installed 的順序（安裝順序）再依 def 順序展開，順序穩定：
 // 直接迭代 widgetsByPlugin 會受 Map 的插入順序影響（停用再啟用會把外掛移到
 // 最後），頂欄 chip 就會莫名換位。
+//
+// 每筆都帶 sha256：頂欄 chip 的 React key 要帶上它才能在外掛升版時重新
+// 掛載 ErrorBoundary（同一顆外掛 key 不變的話，即使 Component 已經換成
+// 修好的新函式，React 仍沿用同一個 boundary instance，state.error 永遠
+// 回不來，見 plugin-widget-bar.tsx 的 WidgetChip）。
 export function listLoadedWidgets(): {
     pluginId: string;
     widget: PluginWidgetDef;
+    sha256: string;
 }[] {
-    const out: { pluginId: string; widget: PluginWidgetDef }[] = [];
+    const out: { pluginId: string; widget: PluginWidgetDef; sha256: string }[] =
+        [];
     for (const p of state.installed) {
         const defs = widgetsByPlugin.get(p.id);
         if (!defs) continue;
-        for (const widget of defs) out.push({ pluginId: p.id, widget });
+        for (const widget of defs) {
+            out.push({ pluginId: p.id, widget, sha256: p.manifest.sha256 });
+        }
     }
     return out;
 }

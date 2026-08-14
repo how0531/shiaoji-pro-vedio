@@ -26,7 +26,11 @@ function widget(over: Partial<PluginWidgetDef> = {}): PluginWidgetDef {
 }
 
 function entry(pluginId: string, over: Partial<PluginWidgetDef> = {}) {
-    return { pluginId, widget: widget(over) } satisfies WidgetEntry;
+    return {
+        pluginId,
+        widget: widget(over),
+        sha256: '0'.repeat(64),
+    } satisfies WidgetEntry;
 }
 
 describe('widgetPrefKey', () => {

@@ -611,8 +611,9 @@ export const permNoteTag = style({
     color: vars.color.mutedForeground,
 });
 
-// host 對所有外掛一律成立的邊界（PLUGIN_HOST_GUARANTEE）。放在權限區底部，
-// 與外掛自述分開：不可信的一方不能保證自己不會做壞事。
+// App 提供給外掛的介面本身不含什麼（PLUGIN_HOST_BOUNDARY_NOTE）。放在權限
+// 區底部，與外掛自述分開：不可信的一方不能保證自己不會做壞事，這裡也
+// 老實講明介面不是密封邊界。
 export const hostGuarantee = style({
     marginTop: '2px',
     paddingTop: vars.space.sm,
